@@ -8,12 +8,27 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(gtrendsR)
+library(tidyverse)
+library(lubridate)
 ```
 
 ```{r pull-query}
-res <- gtrends(c("delta 8", "delta8","delta 8 gummies"), geo = "US")
+res <- gtrends(c("delta 8", "delta-8","delta 8 gummies", "delta 8 thc"), geo = "US")
+
+#graph of terms/interest over time
 plot(res)
 ```
 
 
+```{r, data-wrangling}
+#Trend over time 
+interest_over_time_df <- res$interest_over_time
+
+#Designated Market Area
+interest_by_dma_df <- res$interest_by_dma
+#Region
+interest_by_region_df <- res$interest_by_region
+#City
+interest_by_city_df <- res$interest_by_city
+```
 
