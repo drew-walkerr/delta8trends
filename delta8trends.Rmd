@@ -1,0 +1,19 @@
+---
+title: "delta8trends"
+author: "Drew Walker"
+date: "5/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(gtrendsR)
+```
+
+```{r pull-query}
+res <- gtrends(c("delta 8", "delta8","delta 8 gummies"), geo = "US")
+plot(res)
+```
+
+
+
