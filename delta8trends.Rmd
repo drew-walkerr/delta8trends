@@ -13,7 +13,7 @@ library(lubridate)
 ```
 
 ```{r pull-query}
-res <- gtrends(c("delta 8", "delta-8","delta 8 gummies", "delta 8 thc"), geo = "US")
+res <- gtrends(c("delta 8 gummies", "delta 8 flower", "delta 8 carts", "delta 8 concentrates"), geo = "US")
 
 #graph of terms/interest over time
 plot(res)
