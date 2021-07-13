@@ -1,0 +1,215 @@
+---
+title: "delta8tweets"
+author: "Drew Walker"
+date: "6/9/2021"
+output: html_document
+bibliography: references.bib
+---
+# Tidy Adaptation
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#remotes::install_github("slu-openGIS/postmastr")
+library(stm)
+library(here)
+library(postmastr)
+library(textmineR)
+library(tidyverse)
+library(tidytext)
+library(knitr) #Create nicely formatted output tables
+library(kableExtra) #Create nicely formatted output tables
+library(formattable) #For the color_tile function
+library(lubridate)
+library(academictwitteR)
+library(tm)
+library(tidygeocoder)
+library(ggpubr)
+library(topicmodels)
+
+APIToken <- read_csv("apikeys.csv")
+api_key <- as.character(APIToken[1,1])
+api_secret_key <- as.character(APIToken[1,2])
+bearer_token <- as.character(APIToken[1,3])
+```
+
+# Resources for topic modeling
+
+Tidy Text Mining With R (Julia Silge) <https://www.tidytextmining.com/topicmodeling.html>
+
+Predominantly used: has some older code that i had to fix, may try to convert to Julia's topicmodels package <https://towardsdatascience.com/beginners-guide-to-lda-topic-modelling-with-r-e57a5a8e7a25>
+
+# Pull tweet full archive tweet data
+
+-   Add search by hashtag
+
+```{r get-hashtag-delta8-tweets}
+
+#Get tweets with Delta 8 thc or delta 8 hashtag
+
+hashtag_delta8_tweets_jan_2020 <-  get_all_tweets("#delta8",
+                 "2020-01-01T00:00:00Z",
+                 "2021-07-13T00:00:00Z",
+                 bearer_token)
+users_hashtag_d8_tweets_jan_2020 <-
+  get_user_profile(unique(hashtag_delta8_tweets_jan_2020$author_id), bearer_token)
+
+users_hashtag_d8_tweets_jan_2020 <- users_hashtag_d8_tweets_jan_2020 %>% 
+  rename(author_id = id)
+
+
+hashtag_delta8_tweets_and_user_info_jan_2020 <- left_join(hashtag_delta8_tweets_jan_2020, users_hashtag_d8_tweets_jan_2020, by = "author_id")
+
+write_rds(hashtag_delta8_tweets_and_user_info_jan_2020, "hashtag_delta8_tweets_and_user_info_jan_2020.rds")
+```
+
+# Tweet data NLP and trend analysis
+
+```{r delta8tweets,}
+d8_tweets <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
+d8_tweets <- d8_tweets
+```
+
+# prepping for nlp
+
+Decision was made to remove stopwords post hoc, due to inclusion of bigrams, and recent reseearch recommending for adhoc removeal instead. [@schofield2017]
+
+-   [@boon-itt2020] removed urls, emojis, special characters, retweets, hashtag symbols, hyperlinks.
+
+    -   Also removed stopwords, lower cased, digits, words like delta8, delta, thc, http
+
+```{r, preprocessing-tweets}
+
+d8_tweets_text_id <- d8_tweets %>% 
+  select(text,id)
+
+#Token unnesting 
+
+#Remove @ and RT tweet notation
+d8_tweets$text <- gsub("RT.*:", "", d8_tweets$text)
+d8_tweets$text <- gsub("@.* ", "", d8_tweets$text)
+# sub out digits , punctuation
+#Should digits be included in case of delta 8, delta 10? 
+
+d8_tweets$text <- gsub('[[:punct:]]+', '', d8_tweets$text)
+text_cleaning_tokens <- d8_tweets %>% 
+  tidytext::unnest_tokens(word, text) %>% 
+  left_join(d8_tweets_text_id, by = "id") %>%
+  mutate(raw_text = text)
+#remove words? like 
+
+text_cleaning_tokens$word <- gsub('[[:digit:]]+', '', text_cleaning_tokens$word)
+text_cleaning_tokens$word <- gsub('https|delta|delta 8|thc', '', text_cleaning_tokens$word)
+#remove anything where word is only 1 character like a i d, remove stopwords
+text_cleaning_tokens <- text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
+  anti_join(stop_words)
+#Stem/lemmatizer?
+# https://blogs.cornell.edu/cornellnlp/2019/02/09/choose-your-words-wisely-for-topic-models/ 
+# may not need to, is often done to save resources, or combine multiple words to mean same thing. May try to do as a sensitivity check 
+
+#remove commonly occurring words
+
+
+#remove spaces
+text_cleaning_tokens <- text_cleaning_tokens %>% 
+  count(id,word) %>% 
+  filter(word != "")
+```
+
+# Create document term matrix
+
+```{r, create-dtm}
+#create DTM
+tweet_dtm <- text_cleaning_tokens %>% 
+  cast_dtm(id,word,n)
+```
+
+# Running lda on up to 20 clusters, determining number of ks for analysis by highest coherence score
+
+-   We evaluated lda models using 1-20 clusters, and chose to conduct the analysis using 3 clusters due to the highest coherence score.
+
+-   We tried others inaugural_dfmas a sensitivity analysis
+
+```{r test-model}
+ldatest_tweet <- LDA(tweet_dtm,k=5,control = (list(seed = 5849)))
+```
+
+
+```{r, evaluate-model}
+tweet_topics <- tidy(ldatest_tweet, matrix = "beta")
+tweet_topics
+```
+
+```{r, evaluate words}
+  
+d8_top_terms <- tweet_topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 15) %>% 
+  ungroup() %>%
+  arrange(topic, -beta)
+
+d8_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+```
+
+
+
+```{r, lda}
+library(furrr)
+plan(multiprocess)
+
+models <- tibble(K = 2:12) %>%
+  mutate(topic_model = future_map(K, ~LDA(tweet_dtm,k = ., control = list(seed = 5849))))
+
+current_time <- Sys.time()
+st <- format(current_time,"%Y-%m-%d_%H_%M",)
+
+rdsfilename <- paste0(here("summarysave"),st,".rds") 
+saveRDS(models, rdsfilename)
+```
+
+```{r, get-top-words}
+plan(multiprocess)
+models_tidy <- models %>% 
+  mutate(tweet_topics = future_map(tidy(topic_model,matrix = "beta")))
+```
+
+
+
+
+# generating label topics
+
+A label topic procedure was used using the textmineR GetProbableTerms function, which extracted terms (uni and bigrams) which are "more probable [in a set of topics] than a corpus overall".
+
+
+# Sentiment Analysis
+
+```{r, nrc}
+nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
+
+nrc_words <- tf %>%
+  rename(word = term) %>% 
+  inner_join(nrc, by="word")
+
+pie_words<- nrc_words %>%
+  group_by(sentiment) %>% # group by sentiment type
+  tally %>% # counts number of rows
+  arrange(desc(n)) # arrange sentiments in descending order based on frequency
+pieFileName <- paste0(here("piewords"),st,".png") 
+
+nrc_pie_chart <- ggplot(pie_words, aes(x= fct_reorder(sentiment,n),y = n, fill = sentiment)) + 
+          geom_bar(position = "dodge", stat = "identity")+
+  xlab("NRC Sentiment")+
+  ylab("Word Count in Delta 8 Tweets")+
+  coord_flip()+
+  theme_classic2()+
+  theme(legend.position = "none")
+nrc_pie_chart
+
+ggsave(pieFileName)
+
+
+```
