@@ -1,7 +1,7 @@
 ---
 title: "delta8tweets"
 author: "Drew Walker"
-date: "6/9/2021"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 bibliography: references.bib
 ---
@@ -46,10 +46,13 @@ Predominantly used: has some older code that i had to fix, may try to convert to
 
 #Get tweets with Delta 8 thc or delta 8 hashtag
 
-hashtag_delta8_tweets_jan_2020 <-  get_all_tweets("#delta8",
-                 "2020-01-01T00:00:00Z",
-                 "2021-07-13T00:00:00Z",
-                 bearer_token)
+hashtag_delta8_tweets_jan_2020 <-  get_all_tweets(
+  query = "#delta8",
+  start_tweets = "2020-01-01T00:00:00Z",
+  end_tweets = "2021-07-14T00:00:00Z",
+  bearer_token,data_path = "data/",
+  n = 100000)
+
 users_hashtag_d8_tweets_jan_2020 <-
   get_user_profile(unique(hashtag_delta8_tweets_jan_2020$author_id), bearer_token)
 
@@ -129,32 +132,6 @@ tweet_dtm <- text_cleaning_tokens %>%
 
 -   We tried others inaugural_dfmas a sensitivity analysis
 
-```{r test-model}
-ldatest_tweet <- LDA(tweet_dtm,k=5,control = (list(seed = 5849)))
-```
-
-
-```{r, evaluate-model}
-tweet_topics <- tidy(ldatest_tweet, matrix = "beta")
-tweet_topics
-```
-
-```{r, evaluate words}
-  
-d8_top_terms <- tweet_topics %>%
-  group_by(topic) %>%
-  slice_max(beta, n = 15) %>% 
-  ungroup() %>%
-  arrange(topic, -beta)
-
-d8_top_terms %>%
-  mutate(term = reorder_within(term, beta, topic)) %>%
-  ggplot(aes(beta, term, fill = factor(topic))) +
-  geom_col(show.legend = FALSE) +
-  facet_wrap(~ topic, scales = "free") +
-  scale_y_reordered()
-```
-
 
 
 ```{r, lda}
@@ -171,15 +148,52 @@ rdsfilename <- paste0(here("summarysave"),st,".rds")
 saveRDS(models, rdsfilename)
 ```
 
-```{r, get-top-words}
-plan(multiprocess)
-models_tidy <- models %>% 
-  mutate(tweet_topics = future_map(tidy(topic_model,matrix = "beta")))
+```{r, get-model-perplexity}
+tibble(
+  k = models$K,
+  perplex = map_dbl(models$topic_model, perplexity)
+) %>%
+  ggplot(aes(k, perplex)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    title = "Evaluating LDA topic models",
+    subtitle = "Optimal number of topics (smaller is better)",
+    x = "Number of topics",
+    y = "Perplexity"
+  )
+#Save ggplot below, change to classic theme
 ```
 
 
+```{r test-model}
+best_fit_model <- LDA(tweet_dtm,k=8, control = (list(seed = 5849)))
 
 
+d8_twitter_topics_beta <- tidy(best_fit_model, matrix = "beta")
+d8_twitter_topics_beta
+
+
+```
+
+
+```{r, evaluate-words}
+d8_top_terms <- d8_twitter_topics_beta %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 15) %>% 
+  ungroup() %>%
+  arrange(topic, -beta)
+
+d8_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+topicsFilename <- paste0(here("topics"),st,".png") 
+ggsave(topicsFilename)
+
+```
 # generating label topics
 
 A label topic procedure was used using the textmineR GetProbableTerms function, which extracted terms (uni and bigrams) which are "more probable [in a set of topics] than a corpus overall".
@@ -190,8 +204,7 @@ A label topic procedure was used using the textmineR GetProbableTerms function, 
 ```{r, nrc}
 nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
 
-nrc_words <- tf %>%
-  rename(word = term) %>% 
+nrc_words <- text_cleaning_tokens %>%
   inner_join(nrc, by="word")
 
 pie_words<- nrc_words %>%
