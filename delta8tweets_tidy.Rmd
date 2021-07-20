@@ -25,6 +25,7 @@ library(tm)
 library(tidygeocoder)
 library(ggpubr)
 library(topicmodels)
+library(scales)
 
 APIToken <- read_csv("apikeys.csv")
 api_key <- as.character(APIToken[1,1])
@@ -43,23 +44,23 @@ Predominantly used: has some older code that i had to fix, may try to convert to
 -   Add search by hashtag
 
 ```{r get-hashtag-delta8-tweets}
-
-#Get tweets with Delta 8 thc or delta 8 hashtag
+#
+##Get tweets with Delta 8 thc or delta 8 hashtag
 
 hashtag_delta8_tweets_jan_2020 <-  get_all_tweets(
   query = "#delta8",
   start_tweets = "2020-01-01T00:00:00Z",
-  end_tweets = "2021-07-14T00:00:00Z",
+  end_tweets = "2021-07-20T00:00:00Z",
   bearer_token,data_path = "data/",
   n = 100000)
 
 users_hashtag_d8_tweets_jan_2020 <-
-  get_user_profile(unique(hashtag_delta8_tweets_jan_2020$author_id), bearer_token)
-
+get_user_profile(unique(hashtag_delta8_tweets_jan_2020$author_id), bearer_token)
+#
 users_hashtag_d8_tweets_jan_2020 <- users_hashtag_d8_tweets_jan_2020 %>% 
   rename(author_id = id)
-
-
+#
+#
 hashtag_delta8_tweets_and_user_info_jan_2020 <- left_join(hashtag_delta8_tweets_jan_2020, users_hashtag_d8_tweets_jan_2020, by = "author_id")
 
 write_rds(hashtag_delta8_tweets_and_user_info_jan_2020, "hashtag_delta8_tweets_and_user_info_jan_2020.rds")
@@ -101,7 +102,7 @@ text_cleaning_tokens <- d8_tweets %>%
 #remove words? like 
 
 text_cleaning_tokens$word <- gsub('[[:digit:]]+', '', text_cleaning_tokens$word)
-text_cleaning_tokens$word <- gsub('https|delta|delta 8|thc', '', text_cleaning_tokens$word)
+text_cleaning_tokens$word <- gsub('https|delta|delta 8|thc|cbd|hemp', '', text_cleaning_tokens$word)
 #remove anything where word is only 1 character like a i d, remove stopwords
 text_cleaning_tokens <- text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
   anti_join(stop_words)
@@ -138,7 +139,7 @@ tweet_dtm <- text_cleaning_tokens %>%
 library(furrr)
 plan(multiprocess)
 
-models <- tibble(K = 2:12) %>%
+models <- tibble(K = 2:15) %>%
   mutate(topic_model = future_map(K, ~LDA(tweet_dtm,k = ., control = list(seed = 5849))))
 
 current_time <- Sys.time()
@@ -169,17 +170,16 @@ ggsave(perplexityFilename)
 
 
 ```{r test-model}
-best_fit_model <- LDA(tweet_dtm,k=8, control = (list(seed = 5849)))
+
+topics <- 2:15
+
+lda_and_summary <- function(topic_number){
+best_fit_model <- LDA(tweet_dtm,k=topic_number, control = (list(seed = 5849)))
 
 
 d8_twitter_topics_beta <- tidy(best_fit_model, matrix = "beta")
 d8_twitter_topics_beta
 
-
-```
-
-
-```{r, evaluate-words}
 d8_top_terms <- d8_twitter_topics_beta %>%
   group_by(topic) %>%
   slice_max(beta, n = 15) %>% 
@@ -192,13 +192,30 @@ d8_top_terms %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   scale_y_reordered()
-topicsFilename <- paste0(here("topics"),st,".png") 
+current_time <- Sys.time()
+st <- format(current_time,"%Y-%m-%d_%H_%M")
+
+topicsFilename <- paste0(here("topics"),topic_number,st,".png") 
 ggsave(topicsFilename)
+return(d8_top_terms)
+}
+
+topics_dfs <- topics %>% 
+  as_tibble() 
+
+for (value in topics_dfs$value){
+  lda_and_summary(value)
+}
 
 ```
-# generating label topics
 
-A label topic procedure was used using the textmineR GetProbableTerms function, which extracted terms (uni and bigrams) which are "more probable [in a set of topics] than a corpus overall".
+
+"Alternatively, expert human judgment has been used to evaluate topic modeling outputs, especially when the modeling outputs are supposed to be used for human interpretation (Mimno et al., 2011, Mimno et al., 2011). Although human judgment is effective for judging the interpretability of topic modeling outputs, it is labor and time intensive (Baumer et al., 2017)." 
+
+* Meaning, if we can identify topics that highlight meaningful differences/features to identify texts. Can we use delphi method? 
+* Instructions: indicate a selected topic to most frequent word clusters that makes the most sense to substance abuse researcher/social media expert. 
+
+
 
 
 # Sentiment Analysis
@@ -209,22 +226,28 @@ nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
 nrc_words <- text_cleaning_tokens %>%
   inner_join(nrc, by="word")
 
-pie_words<- nrc_words %>%
+bar_words<- nrc_words %>%
   group_by(sentiment) %>% # group by sentiment type
   tally %>% # counts number of rows
-  arrange(desc(n)) # arrange sentiments in descending order based on frequency
-pieFileName <- paste0(here("piewords"),st,".png") 
+  arrange(desc(n)) %>% 
+  mutate(percent = n/sum(n))
+           
+# arrange sentiments in descending order based on frequency
+#get row percentage
 
-nrc_pie_chart <- ggplot(pie_words, aes(x= fct_reorder(sentiment,n),y = n, fill = sentiment)) + 
-          geom_bar(position = "dodge", stat = "identity")+
-  xlab("NRC Sentiment")+
-  ylab("Word Count in Delta 8 Tweets")+
+nrc_bar_filename <- paste0(here("nrc_bar"),st,".png") 
+
+nrc_bar <- ggplot(bar_words, aes(x= fct_reorder(sentiment,n),y = n, fill = sentiment, label = percent)) + 
+          geom_col(show.legend = FALSE,
+                   width = 1)+
+    geom_text(aes(label = percent), hjust = .14)+
+  labs(x = "NRC Sentiment", y = "Frequency of Sentiment Words in Delta 8 Tweets")+
   coord_flip()+
-  theme_classic2()+
-  theme(legend.position = "none")
-nrc_pie_chart
+  theme_classic()
+nrc_bar
 
-ggsave(pieFileName)
+ggsave(nrc_bar_filename)
 
-
+kable(bar_words)
+sum(bar_words$n)
 ```
