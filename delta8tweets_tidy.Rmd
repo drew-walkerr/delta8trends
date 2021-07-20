@@ -163,6 +163,8 @@ tibble(
     y = "Perplexity"
   )
 #Save ggplot below, change to classic theme
+perplexityFilename <- paste0(here("perplexity"),st,".png") 
+ggsave(perplexityFilename)
 ```
 
 
