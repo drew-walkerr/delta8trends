@@ -76,27 +76,28 @@ d8_tweets <- d8_tweets
 
 # prepping for nlp
 
-Decision was made to remove stopwords post hoc, due to inclusion of bigrams, and recent reseearch recommending for adhoc removeal instead. [@schofield2017]
+ and recent research recommending for adhoc removeal of stopwords and stuff instead  instead. [@schofield2017]
 
 -   [@boon-itt2020] removed urls, emojis, special characters, retweets, hashtag symbols, hyperlinks.
-
     -   Also removed stopwords, lower cased, digits, words like delta8, delta, thc, http
 
 ```{r, preprocessing-tweets}
-
-d8_tweets_text_id <- d8_tweets %>% 
-  select(text,id)
-
-#Token unnesting 
-
 #Remove @ and RT tweet notation
 d8_tweets$text <- gsub("RT.*:", "", d8_tweets$text)
 d8_tweets$text <- gsub("@.* ", "", d8_tweets$text)
 # sub out digits , punctuation
 #Should digits be included in case of delta 8, delta 10? 
 
-d8_tweets$text <- gsub('[[:punct:]]+', '', d8_tweets$text)
-text_cleaning_tokens <- d8_tweets %>% 
+d8_tweets_text_id <- d8_tweets %>% 
+  select(text,author_id,id) %>% 
+  group_by(author_id) %>% 
+  mutate(author_text = paste0(text, collapse = " ")) %>% 
+  distinct(author_id,author_text) %>% 
+  select(id = author_id,
+         text = author_text)
+
+d8_tweets_text_id$text <- gsub('[[:punct:]]+', '', d8_tweets_text_id$text)
+text_cleaning_tokens <- d8_tweets_text_id %>% 
   tidytext::unnest_tokens(word, text) %>% 
   left_join(d8_tweets_text_id, by = "id") %>%
   mutate(raw_text = text)
@@ -144,7 +145,7 @@ models <- tibble(K = 2:15) %>%
 current_time <- Sys.time()
 st <- format(current_time,"%Y-%m-%d_%H_%M",)
 
-rdsfilename <- paste0(here("summarysave"),st,".rds") 
+rdsfilename <- paste0(here("summarysave_authors"),st,".rds") 
 saveRDS(models, rdsfilename)
 ```
 
@@ -163,7 +164,7 @@ tibble(
     y = "Perplexity"
   )
 #Save ggplot below, change to classic theme
-perplexityFilename <- paste0(here("perplexity"),st,".png") 
+perplexityFilename <- paste0(here("perplexity_author"),st,".png") 
 ggsave(perplexityFilename)
 ```
 
@@ -194,7 +195,7 @@ top_terms_plot <- d8_top_terms %>%
 current_time <- Sys.time()
 st <- format(current_time,"%Y-%m-%d_%H_%M")
 
-topicsFilename <- paste0(here("topics"),topic_number,st,".png") 
+topicsFilename <- paste0(here("topics_authors"),topic_number,st,".png") 
 ggsave(topicsFilename)
 return(d8_top_terms)
 }
@@ -230,7 +231,7 @@ bar_words<- nrc_words %>%
 # arrange sentiments in descending order based on frequency
 #get row percentage
 
-nrc_bar_filename <- paste0(here("nrc_bar"),st,".png") 
+nrc_bar_filename <- paste0(here("nrc_bar_authors"),st,".png") 
 
 nrc_bar <- ggplot(bar_words, aes(x= fct_reorder(sentiment,n),y = n, fill = sentiment, label = percent)) + 
           geom_col(show.legend = FALSE,
