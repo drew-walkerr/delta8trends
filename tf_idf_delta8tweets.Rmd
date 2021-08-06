@@ -1,0 +1,92 @@
+---
+title: "tf_idf_delta8tweets.Rmd"
+author: "Drew Walker"
+date: "8/6/2021"
+output: html_document
+---
+---
+title: "delta8tweets"
+author: "Drew Walker"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+bibliography: references.bib
+---
+
+# Tidy Adaptation
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#remotes::install_github("slu-openGIS/postmastr")
+library(operators)
+library(magrittr)
+library(stm)
+library(here)
+library(postmastr)
+library(textmineR)
+library(tidyverse)
+library(tidytext)
+library(knitr) #Create nicely formatted output tables
+library(kableExtra) #Create nicely formatted output tables
+library(formattable) #For the color_tile function
+library(lubridate)
+library(academictwitteR)
+library(tm)
+library(tidygeocoder)
+library(ggpubr)
+library(topicmodels)
+library(scales)
+library(gt)
+library(webshot)
+library(epitweetr)
+
+APIToken <- read_csv("apikeys.csv")
+api_key <- as.character(APIToken[1,1])
+api_secret_key <- as.character(APIToken[1,2])
+bearer_token <- as.character(APIToken[1,3])
+```
+
+Read in Data
+
+```{r delta8tweets,}
+d8_tweets <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
+```
+
+```{r, preprocessing-tweets}
+#Remove @ and RT tweet notation
+d8_tweets$text <- gsub("RT.*:", "", d8_tweets$text)
+d8_tweets$text <- gsub("@.* ", "", d8_tweets$text)
+# sub out digits , punctuation
+#Should digits be included in case of delta 8, delta 10? 
+
+d8_tweets_text_id <- d8_tweets %>% 
+  select(text,author_id,id) %>% 
+  group_by(author_id) %>% 
+  mutate(author_text = paste0(text, collapse = " ")) %>% 
+  distinct(author_id,author_text) %>% 
+  select(id = author_id,
+         text = author_text)
+
+d8_tweets_text_id$text <- gsub('[[:punct:]]+', '', d8_tweets_text_id$text)
+text_cleaning_tokens <- d8_tweets_text_id %>% 
+  tidytext::unnest_tokens(word, text) %>% 
+  left_join(d8_tweets_text_id, by = "id") %>%
+  mutate(raw_text = text)
+#remove words? like 
+
+text_cleaning_tokens$word <- gsub('[[:digit:]]+', '', text_cleaning_tokens$word)
+text_cleaning_tokens$word <- gsub('^https|^amp$|^delta$|^delta 8$|^thc$|^cbd$|^hemp$|^cannabis$', '', text_cleaning_tokens$word)
+#remove anything where word is only 1 character like a i d, remove stopwords
+text_cleaning_tokens <- text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
+  anti_join(stop_words)
+#Stem/lemmatizer?
+# https://blogs.cornell.edu/cornellnlp/2019/02/09/choose-your-words-wisely-for-topic-models/ 
+# may not need to, is often done to save resources, or combine multiple words to mean same thing. May try to do as a sensitivity check 
+
+#remove commonly occurring words
+
+
+#remove spaces
+text_cleaning_tokens <- text_cleaning_tokens %>% 
+  count(id,word) %>% 
+  filter(word != "")
+```

@@ -30,6 +30,9 @@ library(tidygeocoder)
 library(ggpubr)
 library(topicmodels)
 library(scales)
+library(gt)
+library(webshot)
+library(epitweetr)
 
 APIToken <- read_csv("apikeys.csv")
 api_key <- as.character(APIToken[1,1])
@@ -226,34 +229,48 @@ nrc_words <- text_cleaning_tokens %>%
 nrc_sentiment_top_terms <- nrc_words %>%
   group_by(sentiment) %>%
   slice_max(n, n = 5) %>% 
+  mutate(top_terms = paste0(word, collapse = " , ")) %>% 
   ungroup() %>%
-  arrange(sentiment, -n)
+  arrange(sentiment, -n) 
+
 kable(nrc_sentiment_top_terms)
 
 bar_words<- nrc_words %>%
   group_by(sentiment) %>% # group by sentiment type
   tally %>% # counts number of rows
   arrange(desc(n)) %>% 
-  mutate(percent = n/sum(n))
-           
+  mutate(percent = n/sum(n)) %>% 
+  left_join(nrc_sentiment_top_terms, by = "sentiment")
+       
+bar_words_table <- bar_words %>% 
+  select(sentiment,n.x,percent,top_terms) %>% 
+  rename(word_count_by_sentiment = n.x) %>% 
+  distinct(sentiment,word_count_by_sentiment,percent,top_terms)
+
+kable(bar_words_table)
+
 # arrange sentiments in descending order based on frequency
 #get row percentage
 
 nrc_bar_filename <- paste0(here("nrc_bar_authors"),st,".png") 
 
-nrc_bar <- ggplot(bar_words, aes(x= fct_reorder(sentiment,n),y = n, fill = sentiment, label = percent)) + 
+nrc_bar <- ggplot(bar_words, aes(x= fct_reorder(sentiment,n.x),y = n.x, fill = sentiment, label = percent)) + 
           geom_col(show.legend = FALSE,
                    width = 1)+
     geom_text(aes(label = percent), hjust = .14)+
   labs(x = "NRC Sentiment", y = "Frequency of Sentiment Words in Delta 8 Tweets")+
   coord_flip()+
   theme_classic()
-nrc_bar
 
 ggsave(nrc_bar_filename)
 
 kable(bar_words)
 sum(bar_words$n)
+
+bar_words_table_gt <- gt(bar_words_table)
+
+bar_words_table_gt %>% 
+  gtsave("nrc_sentiment_table.html", inline_css = TRUE)
 ```
 
 ```{r, trends-over-time}
@@ -272,7 +289,7 @@ d8_tweets_by_date <- d8_tweets %>%
 tweets_per_day <- ggplot(d8_tweets_by_date, aes(day, tweets_per_day)) +
   geom_line(aes(y = tweets_per_day), color = "darkred")+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to July 21, 2021", y = "Tweets per Day", title = "Number of Original Tweets per day mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 3, 2021", y = "Tweets per Day", title = "Frequency of Original Tweets per day mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 tweets_per_day
@@ -283,7 +300,7 @@ ggsave(tweets_per_day_filename)
 likes_per_day <- ggplot(d8_tweets_by_date, aes(day, likes_per_day)) +
   geom_line(aes(y = likes_per_day), color = "darkblue")+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to July 21, 2021", y = "Likes per Day", title = "Frequency of Tweet likes mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 3, 2021", y = "Likes per Day", title = "Frequency of Tweet likes mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 likes_per_day
@@ -293,7 +310,7 @@ ggsave(likes_per_day_file_name)
 retweets_per_day <- ggplot(d8_tweets_by_date, aes(day, retweets_per_day)) +
   geom_line(aes(y = retweets_per_day), color = "orange")+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to July 21, 2021", y = "Retweets per Day", title = "Frequency of Tweet retweets mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 3, 2021", y = "Retweets per Day", title = "Frequency of Tweet retweets mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 retweets_per_day
@@ -303,7 +320,7 @@ ggsave(retweets_per_day_file_name)
 quotes_per_day <- ggplot(d8_tweets_by_date, aes(day, quotes_per_day)) +
   geom_line(aes(y = quotes_per_day))+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to July 21, 2021", y = "quotes per Day", title = "Frequency of Tweet quotes mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 3, 2021", y = "quotes per Day", title = "Frequency of Tweet quotes mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 quotes_per_day
@@ -313,7 +330,7 @@ ggsave(quotes_per_day_file_name)
 replies_per_day <- ggplot(d8_tweets_by_date, aes(day, replies_per_day)) +
   geom_line(aes(y = replies_per_day))+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to July 21, 2021", y = "replies per Day", title = "Frequency of Tweet replies mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 3, 2021", y = "replies per Day", title = "Frequency of Tweet replies mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 replies_per_day
