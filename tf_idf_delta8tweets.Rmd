@@ -104,7 +104,8 @@ text_cleaning_tokens <- d8_tf_tweets %>%
 #remove words? like 
 
 text_cleaning_tokens$word <- gsub('[[:digit:]]+', '', text_cleaning_tokens$word)
-text_cleaning_tokens$word <- gsub('^https|^amp$|^delta$|^delta 8$|^thc$|^cbd$|^hemp$|^cannabis$', '', text_cleaning_tokens$word)
+text_cleaning_tokens$word <- gsub('tcozeblsqvstm|tcoustsqyad|tcopxkggeka|http\\S+\\s*', '', text_cleaning_tokens$word)
+
 #remove anything where word is only 1 character like a i d, remove stopwords
 text_cleaning_tokens <- text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
   anti_join(stop_words)
@@ -129,6 +130,9 @@ time_period_words <- left_join(time_period_words, total_words)
 time_period_tf_idf <- time_period_words %>% 
   bind_tf_idf(word,time_period.x,n)
 
+time_period_tf_idf %>%
+  select(-total) %>%
+  arrange(desc(tf_idf))
 library(forcats)
 
 time_period_tf_idf %>%
@@ -139,5 +143,11 @@ time_period_tf_idf %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~time_period.x, ncol = 2, scales = "free") +
   labs(x = "tf-idf", y = NULL)
+
+current_time <- Sys.time()
+st <- format(current_time,"%Y-%m-%d_%H_%M")
+time_period_tf_idf_filename <- paste0(here("time_period_tf_idf"),st,".png") 
+ggsave(time_period_tf_idf_filename)
+
 ```
 
