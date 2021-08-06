@@ -51,25 +51,55 @@ Read in Data
 d8_tweets <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
 ```
 
+# Making discrete date phases for different phases in frequency 
+
+```{r, trends-over-time}
+
+d8_tweets_by_date <- d8_tweets %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day)) %>% 
+  dplyr::group_by(day) %>% 
+  dplyr::summarize(tweets_per_day = n(),
+            likes_per_day = sum(public_metrics.x$like_count, na.rm = TRUE),
+            retweets_per_day = sum(public_metrics.x$retweet_count, na.rm = TRUE),
+            replies_per_day = sum(public_metrics.x$reply_count, na.rm = TRUE),
+            quotes_per_day = sum(public_metrics.x$quote_count, na.rm = TRUE))
+
+#breaking into discrete time buckets
+first_date <- as.Date("2020-01-01")
+second_date <- as.Date("2020-12-01")
+third_date <- as.Date("2021-06-01")
+today <- lubridate::today()
+
+d8_tweets_by_date_buckets <- d8_tweets_by_date %>% 
+  mutate(time_period = case_when(
+   between(day, first_date, second_date) ~ "phase_1",
+   between(day, second_date, third_date) ~ "phase_2",
+   TRUE ~ "phase_3"))
+
+d8_tweets_with_date_merge <- d8_tweets %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day))
+
+d8_tf_tweets <- left_join(d8_tweets_with_date_merge,d8_tweets_by_date_buckets)
+```
+
 ```{r, preprocessing-tweets}
 #Remove @ and RT tweet notation
-d8_tweets$text <- gsub("RT.*:", "", d8_tweets$text)
-d8_tweets$text <- gsub("@.* ", "", d8_tweets$text)
+d8_tf_tweets$text <- gsub("RT.*:", "", d8_tf_tweets$text)
+d8_tf_tweets$text <- gsub("@.* ", "", d8_tf_tweets$text)
 # sub out digits , punctuation
 #Should digits be included in case of delta 8, delta 10? 
 
-d8_tweets_text_id <- d8_tweets %>% 
-  select(text,author_id,id) %>% 
-  group_by(author_id) %>% 
-  mutate(author_text = paste0(text, collapse = " ")) %>% 
-  distinct(author_id,author_text) %>% 
-  select(id = author_id,
-         text = author_text)
+d8_tf_time_id <- d8_tf_tweets %>% 
+  select(id,time_period,text)
 
-d8_tweets_text_id$text <- gsub('[[:punct:]]+', '', d8_tweets_text_id$text)
-text_cleaning_tokens <- d8_tweets_text_id %>% 
+d8_tf_tweets$text <- gsub('[[:punct:]]+', '', d8_tf_tweets$text)
+text_cleaning_tokens <- d8_tf_tweets %>% 
   tidytext::unnest_tokens(word, text) %>% 
-  left_join(d8_tweets_text_id, by = "id") %>%
+  left_join(d8_tf_time_id, by = "id") %>%
   mutate(raw_text = text)
 #remove words? like 
 
@@ -86,7 +116,28 @@ text_cleaning_tokens <- text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>%
 
 
 #remove spaces
-text_cleaning_tokens <- text_cleaning_tokens %>% 
-  count(id,word) %>% 
+time_period_words <- text_cleaning_tokens %>% 
+  count(time_period.x,word, sort = TRUE) %>% 
   filter(word != "")
+
+total_words <- time_period_words %>% 
+  group_by(time_period.x) %>% 
+  summarize(total = sum(n))
+
+time_period_words <- left_join(time_period_words, total_words)
+
+time_period_tf_idf <- time_period_words %>% 
+  bind_tf_idf(word,time_period.x,n)
+
+library(forcats)
+
+time_period_tf_idf %>%
+  group_by(time_period.x) %>%
+  slice_max(tf_idf, n = 15) %>%
+  ungroup() %>%
+  ggplot(aes(tf_idf, fct_reorder(word, tf_idf), fill = time_period.x)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~time_period.x, ncol = 2, scales = "free") +
+  labs(x = "tf-idf", y = NULL)
 ```
+
