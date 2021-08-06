@@ -104,7 +104,7 @@ text_cleaning_tokens <- d8_tf_tweets %>%
 #remove words? like 
 
 text_cleaning_tokens$word <- gsub('[[:digit:]]+', '', text_cleaning_tokens$word)
-text_cleaning_tokens$word <- gsub('tcozeblsqvstm|tcoustsqyad|tcopxkggeka|http\\S+\\s*', '', text_cleaning_tokens$word)
+text_cleaning_tokens$word <- gsub('tcozeblsqvstm|tcoustsqyad|tcopxkggeka|http\\S+\\s*|gtgtgt', '', text_cleaning_tokens$word)
 
 #remove anything where word is only 1 character like a i d, remove stopwords
 text_cleaning_tokens <- text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
