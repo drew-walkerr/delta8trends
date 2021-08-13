@@ -31,7 +31,8 @@ library(topicmodels)
 library(scales)
 library(gt)
 library(webshot)
-library(epitweetr)
+library(syuzhet)
+
 
 APIToken <- read_csv("apikeys.csv")
 api_key <- as.character(APIToken[1,1])
@@ -255,9 +256,43 @@ ggsave(replies_per_day_file_name)
 
 # Syuzhet Sentiment Analysis with negation weighting method using sentimentr 
 
-```{r}
-#library(syuzhet)
-library(syuzhet)
+* by tweet
+
+```{r, syuzhet method}
+syuzhet_df <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
+
+syuzhet_df$text <- gsub("RT.*:", "", syuzhet_df$text)
+syuzhet_df$text <- gsub("@.* ", "", syuzhet_df$text)
+# sub out digits , punctuation
+#Should digits be included in case of delta 8, delta 10? 
+syuzhet_df_id <- syuzhet_df %>% 
+   select(id,text)
+
+sentiment_syuzhet <- syuzhet_df_id %>% 
+  mutate(syuzhet_sentiment = get_sentiment(syuzhet_df_id$text))
+
+
+# sentiment over time
+
+sentiment_syuzhet_by_day <- syuzhet_df %>% 
+  left_join(sentiment_syuzhet) %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day)) %>% 
+  dplyr::group_by(day) %>% 
+  dplyr::summarize(sentiment_avg_day = weighted.mean(syuzhet_sentiment))
+
+
+
+sentiment_per_day_plot <- ggplot(sentiment_syuzhet_by_day, aes(day, sentiment_avg_day)) +
+  geom_line(aes(y = sentiment_avg_day))+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(x = "January 1, 2020 to August 3, 2021", y = "Weighted Average Syuzhet Sentiment per Day", title = "Change in sentiment in Tweets mentioning #delta8")+
+  scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
+    theme_classic()
+sentiment_per_day_plot
+sentiment_per_day_plot_filename <- paste0(here("syuzhet_sentiment"),st,".png") 
+ggsave(sentiment_per_day_plot_filename)
 
 
 ```
