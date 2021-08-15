@@ -11,6 +11,7 @@ bibliography: references.bib
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 #remotes::install_github("slu-openGIS/postmastr")
+library(table1)
 library(operators)
 library(magrittr)
 library(stm)
@@ -32,6 +33,8 @@ library(scales)
 library(gt)
 library(webshot)
 library(syuzhet)
+library(gitcreds)
+library(credentials)
 
 
 APIToken <- read_csv("apikeys.csv")
@@ -294,6 +297,9 @@ sentiment_per_day_plot
 sentiment_per_day_plot_filename <- paste0(here("syuzhet_sentiment"),st,".png") 
 ggsave(sentiment_per_day_plot_filename)
 
-
+stats.default(sentiment_syuzhet$syuzhet_sentiment)
+table1(~syuzhet_sentiment, data = sentiment_syuzhet)
+ggplot(sentiment_syuzhet$syuzhet_sentiment)
+#test
 ```
 
