@@ -1,0 +1,356 @@
+---
+title: "delta8tweets"
+author: "Drew Walker"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+bibliography: references.bib
+---
+
+# Tidy Adaptation
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#remotes::install_github("slu-openGIS/postmastr")
+library(table1)
+library(operators)
+library(magrittr)
+library(stm)
+library(here)
+library(postmastr)
+library(textmineR)
+library(tidyverse)
+library(tidytext)
+library(knitr) #Create nicely formatted output tables
+library(kableExtra) #Create nicely formatted output tables
+library(formattable) #For the color_tile function
+library(lubridate)
+library(academictwitteR)
+library(tm)
+library(tidygeocoder)
+library(ggpubr)
+library(topicmodels)
+library(scales)
+library(gt)
+library(webshot)
+library(sentimentr)
+library(syuzhet)
+library(gitcreds)
+library(credentials)
+library(patchwork)
+APIToken <- read_csv("apikeys.csv")
+api_key <- as.character(APIToken[1,1])
+api_secret_key <- as.character(APIToken[1,2])
+bearer_token <- as.character(APIToken[1,3])
+```
+
+
+```{r get-hashtag-delta8-tweets}
+#
+##Get tweets with Delta 8 thc or delta 8 hashtag
+
+today <- as.POSIXct(Sys.Date())
+
+```
+
+# Tweet data NLP and trend analysis
+
+```{r delta8tweets}
+d8_tweets <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
+```
+
+# prepping for nlp
+
+
+* Word count included we removed RT, @ to filter out user handles, digits, urls, and stop words and 1-character words. 
+
+* For NRC sentiment analyses, we removed RT, @ to filter out user handles, digits, urls, and stop words and 1-character words
+
+* For szuzyhnet sentence-level sentiment analysis, which uses sentence-level aggregates and incorporates weighting of negating terms that have been demonstrated to significantly affect accuracy at predicting sentence-level sentiment. 
+
+```{r, preprocessing-tweets}
+#Remove @ and RT tweet notation
+d8_tweets$text <- gsub("RT.*:", "", d8_tweets$text)
+d8_tweets$text <- gsub("@.* ", "", d8_tweets$text)
+# sub out digits , punctuation
+#Should digits be included in case of delta 8, delta 10? 
+d8_tweets_text_id <- d8_tweets %>% 
+   select(id,text)
+
+
+d8_tweets$text <- gsub('[[:punct:]]+', '', d8_tweets$text)
+text_cleaning_tokens <- d8_tweets %>% 
+  tidytext::unnest_tokens(word, text) %>% 
+  left_join(d8_tweets_text_id, by = "id") %>%
+  mutate(raw_text = text)
+#remove words? like 
+
+text_cleaning_tokens$word <- gsub('[[:digit:]]+', '', text_cleaning_tokens$word)
+text_cleaning_tokens$word <- gsub('^https|amp','', text_cleaning_tokens$word)
+
+text_cleaning_tokens <- text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
+  anti_join(stop_words)
+
+#count words
+word_count <- text_cleaning_tokens %>% 
+  filter(word != "") %>% 
+  count(word) %>% 
+  arrange(-n) %>% 
+  slice_max(n, n = 20)
+
+mergeable_word_count <- text_cleaning_tokens %>% 
+  filter(word != "") %>% 
+  count(word)
+
+
+head(word_count,
+     n = 20)
+
+word_count_bar <- ggplot(word_count, aes(x= fct_reorder(word,n),y = n, fill = word)) + 
+          geom_col(show.legend = FALSE)+
+  labs(x = "Word", y = "Count in Delta 8 Tweets")+
+  coord_flip()+
+  theme_pubclean()
+word_count_bar
+
+current_time <- Sys.time()
+st <- format(current_time,"%Y-%m-%d_%H_%M")
+word_count_bar_filename <- paste0(here("word_count"),st,".png") 
+
+ggsave(word_count_bar_filename)
+
+```
+
+
+# Sentiment Analysis
+
+* NRC lexicon used
+
+  * break into by word and merge by sentiment 
+
+
+```{r, nrc}
+nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
+
+nrc_words <- mergeable_word_count %>%
+  inner_join(nrc, by="word")
+
+nrc_sentiment_top_terms <- nrc_words %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 5) %>% 
+  mutate(top_terms = paste0(word, collapse = " , ")) %>% 
+  ungroup() %>%
+  arrange(sentiment, -n) 
+
+
+
+kable(nrc_sentiment_top_terms)
+
+bar_words<- nrc_words %>%
+  group_by(sentiment) %>% # group by sentiment type
+  summarize(word_count = sum(n)) %>% # counts number of rows
+  arrange(desc(word_count)) %>% 
+  mutate(percent = word_count/sum(word_count)) %>% 
+  left_join(nrc_sentiment_top_terms, by = "sentiment")
+       
+bar_words_table <- bar_words %>% 
+  select(sentiment,word_count,percent,top_terms) %>% 
+  rename(word_count_by_sentiment = word_count) %>% 
+  distinct(sentiment,word_count_by_sentiment,percent,top_terms)
+
+bar_words_table_gt <- gt(bar_words_table)
+
+bar_words_table_gt
+bar_words_table_gt %>% 
+  gtsave("nrc_sentiment_table.html", inline_css = TRUE)
+
+distinct_nrc <- distinct(nrc_words,word)
+```
+
+```{r, trends-over-time}
+
+d8_tweets_by_date <- d8_tweets %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day)) %>% 
+  dplyr::group_by(day) %>% 
+  dplyr::summarize(tweets_per_day = n(),
+            likes_per_day = sum(public_metrics.x$like_count, na.rm = TRUE),
+            retweets_per_day = sum(public_metrics.x$retweet_count, na.rm = TRUE),
+            replies_per_day = sum(public_metrics.x$reply_count, na.rm = TRUE),
+            quotes_per_day = sum(public_metrics.x$quote_count, na.rm = TRUE))
+
+tweets_per_day <- ggplot(d8_tweets_by_date, aes(day, tweets_per_day)) +
+  geom_line(aes(y = tweets_per_day), color = "darkred")+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(y = "Tweets per Day", title = "#delta8 Original Tweets")+
+  scale_x_date(date_breaks = "4 months", date_labels = "%b-%y")+
+    theme_classic()+theme(axis.title.x=element_blank())
+tweets_per_day
+tweets_per_day_filename <- paste0(here("tweets_per_day"),st,".png") 
+ggsave(tweets_per_day_filename)
+
+#likes per day graph
+likes_per_day <- ggplot(d8_tweets_by_date, aes(day, likes_per_day)) +
+  geom_line(aes(y = likes_per_day), color = "darkblue")+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(y = "Likes per Day", title = "#delta8 Tweet Likes")+
+  scale_x_date(date_breaks = "4 months", date_labels = "%b-%y")+
+    theme_classic()+
+  theme(axis.title.x=element_blank())
+likes_per_day
+likes_per_day_file_name <- paste0(here("likes_per_day"),st,".png") 
+ggsave(likes_per_day_file_name)
+
+retweets_per_day <- ggplot(d8_tweets_by_date, aes(day, retweets_per_day)) +
+  geom_line(aes(y = retweets_per_day), color = "orange")+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(y = "Retweets per Day", title = "#delta8 Retweets")+
+  scale_x_date(date_breaks = "4 months", date_labels = "%b-%y")+
+    theme_classic()+ 
+  theme(axis.title.x=element_blank())
+retweets_per_day
+retweets_per_day_file_name <- paste0(here("retweets_per_day"),st,".png") 
+ggsave(retweets_per_day_file_name)
+
+quotes_per_day <- ggplot(d8_tweets_by_date, aes(day, quotes_per_day)) +
+  geom_line(aes(y = quotes_per_day))+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(y = "Quotes per Day", title = "#delta8 Quotes")+
+  scale_x_date(date_breaks = "4 months", date_labels = "%b-%y")+
+    theme_classic() + theme(axis.title.x = element_blank())
+quotes_per_day
+quotes_per_day_file_name <- paste0(here("quotes_per_day"),st,".png") 
+ggsave(quotes_per_day_file_name)
+
+replies_per_day <- ggplot(d8_tweets_by_date, aes(day, replies_per_day)) +
+  geom_line(aes(y = replies_per_day))+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(y = "Replies per Day", title = "#delta8 Tweet Replies")+
+  scale_x_date(date_breaks = "4 months", date_labels = "%b-%y")+
+    theme_classic()+
+  theme(axis.title.x=element_blank())
+replies_per_day
+replies_per_day_file_name <- paste0(here("replies_per_day"),st,".png") 
+ggsave(replies_per_day_file_name)
+
+all_graphs <- tweets_per_day + likes_per_day + retweets_per_day + replies_per_day + plot_layout(widths = c(2, 2))
+
+all_graphs
+
+all_graphs_filename <- paste0(here("trend_graph_collage"),st,".png") 
+ggsave(all_graphs_filename)
+
+```
+
+# Syuzhet Sentiment Analysis with negation weighting method using sentimentr 
+
+* by tweet
+
+```{r, syuzhet method}
+syuzhet_df <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
+
+syuzhet_df$text <- gsub("RT.*:", "", syuzhet_df$text)
+syuzhet_df$text <- gsub("@.* ", "", syuzhet_df$text)
+# sub out digits , punctuation
+#Should digits be included in case of delta 8, delta 10? 
+syuzhet_df_id <- syuzhet_df %>% 
+   select(id,text)
+
+sentiment_syuzhet <- syuzhet_df_id %>% 
+  mutate(syuzhet_sentiment = get_sentiment(syuzhet_df_id$text))
+
+
+# sentiment over time
+
+sentiment_syuzhet_by_day <- syuzhet_df %>% 
+  left_join(sentiment_syuzhet) %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day)) %>% 
+  dplyr::group_by(day) %>% 
+  dplyr::summarize(sentiment_avg_day = weighted.mean(syuzhet_sentiment))
+
+#all datetimes sentiment dataframe
+sentiment_syuzhet_tweets <- syuzhet_df %>% 
+  left_join(sentiment_syuzhet) %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day))
+
+
+sentiment_per_day_plot <- ggplot(sentiment_syuzhet_by_day, aes(day, sentiment_avg_day)) +
+  geom_line(aes(y = sentiment_avg_day))+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(x = "January 1, 2020 to August 25, 2021", y = "Weighted Average Syuzhet Sentiment per Day", title = "Change in sentiment in Tweets mentioning #delta8")+
+  scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
+    theme_classic()
+sentiment_per_day_plot
+sentiment_per_day_plot_filename <- paste0(here("syuzhet_sentiment"),st,".png") 
+ggsave(sentiment_per_day_plot_filename)
+
+sentiment_all_plot <- ggplot(sentiment_syuzhet_tweets, aes(day, syuzhet_sentiment)) +
+  geom_point(aes(y = syuzhet_sentiment), alpha = .05)+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(x = "January 1, 2020 to August 25, 2021", y = "Tweet Syuzhet Sentiments scores", title = "Change in sentiment in Tweets mentioning #delta8")+
+  scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
+    theme_classic()
+sentiment_all_plot
+sentiment_all_plot_filename <- paste0(here("syuzhet_all_tweets"),st,".png") 
+ggsave(sentiment_all_plot_filename)
+
+stats.default(sentiment_syuzhet$syuzhet_sentiment)
+table1(~syuzhet_sentiment, data = sentiment_syuzhet)
+
+positive_syuz <- sentiment_syuzhet %>% 
+  arrange(-syuzhet_sentiment) %>% 
+  head(n = 10) %>% 
+  select(-id)
+gt(positive_syuz) %>%
+  gtsave("positive_syuz.html", inline_css = TRUE)
+
+
+negative_syuz <- sentiment_syuzhet %>% 
+  arrange(syuzhet_sentiment) %>% 
+  head(n = 10) %>% 
+  select(-id)
+
+gt(negative_syuz)%>%
+  gtsave("negative_syuz.html", inline_css = TRUE)
+top10_pos_neg_syuz <- bind_rows(negative_syuz, positive_syuz) 
+
+zero_syuz <- sentiment_syuzhet %>% 
+  filter(syuzhet_sentiment == 0.0) %>% 
+  select(-id)
+
+zero_syuz_head <- zero_syuz %>% 
+  head(n = 10)%>% 
+  gt() %>% 
+  gtsave("0_syuz.html", inline_css = TRUE)
+
+hist(sentiment_syuzhet$syuzhet_sentiment, main = "Distribution of Syuzhet Tweet-level Sentiment scores", xlab = "Szyuzhet Tweet-Level Sentiment")
+
+sentiment_distribution <- ggplot(sentiment_syuzhet, aes(x=syuzhet_sentiment)) + 
+  geom_histogram(binwidth = .25)+
+  ggtitle("Distribution of Tweet-level Sentiment")+
+  labs(x = "Syuzhet Tweet Sentiment Score", y = "Count")+
+  theme_pubclean()
+
+sentiment_distribution_filename <- paste0(here("sentiment_distribution"),st,".png") 
+ggsave(sentiment_distribution_filename)
+
+
+
+#investigate tweets within (-.5,0) score, seems most popular categorization
+
+
+
+
+
+```
+#Unique tweet by text
+```{r unique-tweet-text}
+unique_text_d8_tweets <- d8_tweets %>% 
+  distinct(text)
+```
+
+
