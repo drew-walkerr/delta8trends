@@ -84,7 +84,7 @@ text_cleaning_tokens <- d8_tweets %>%
   mutate(raw_text = text)
 #remove words? like 
 
-text_cleaning_tokens$word <- gsub('[[:digit:]]+', '', text_cleaning_tokens$word)
+
 text_cleaning_tokens$word <- gsub('^https|amp','', text_cleaning_tokens$word)
 
 text_cleaning_tokens <- text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
@@ -95,7 +95,8 @@ word_count <- text_cleaning_tokens %>%
   filter(word != "") %>% 
   count(word) %>% 
   arrange(-n) %>% 
-  slice_max(n, n = 20)
+  slice_max(n, n = 31) %>% 
+  filter(word != "delta8")
 
 mergeable_word_count <- text_cleaning_tokens %>% 
   filter(word != "") %>% 
@@ -105,11 +106,13 @@ mergeable_word_count <- text_cleaning_tokens %>%
 head(word_count,
      n = 20)
 
-word_count_bar <- ggplot(word_count, aes(x= fct_reorder(word,n),y = n, fill = word)) + 
-          geom_col(show.legend = FALSE)+
+word_count_bar <- ggplot(word_count, aes(x= fct_reorder(word,n),y = n, fill = word,label=n)) + 
+          geom_col(show.legend = FALSE, position = position_dodge(width = 1))+
   labs(x = "Word", y = "Count in Delta 8 Tweets")+
+  geom_text(size=3,nudge_x = .2,nudge_y = 1500)+
   coord_flip()+
   theme_pubclean()
+  
 word_count_bar
 
 current_time <- Sys.time()
@@ -133,6 +136,10 @@ nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
 
 nrc_words <- mergeable_word_count %>%
   inner_join(nrc, by="word")
+# Top words sentiment
+top_30_word_sentiment <- word_count %>%
+  inner_join(nrc, by="word")
+# only top word was enjoy 
 
 nrc_sentiment_top_terms <- nrc_words %>%
   group_by(sentiment) %>%
@@ -353,4 +360,44 @@ unique_text_d8_tweets <- d8_tweets %>%
   distinct(text)
 ```
 
+# Random 25 tweets from each of the top terms identified
+https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html
+
+```{r}
+
+delta_thc <- d8_tweets %>% 
+  filter(str_detect(text,"deltathc"))
+
+set.seed(2585446)
+random_tweets <- function(word){
+random_df <- d8_tweets %>% 
+  filter(str_detect(text,word)) %>% 
+  slice_sample(n=25) %>% 
+  select(id,text,name) %>% 
+  mutate(Drew_comments = "",
+         Doug_comments = "",
+         Matt_comments = "")
+return(random_df)
+}
+
+
+
+library(purrr)
+library(furrr)
+possible_none <- purrr::possibly(random_tweets, otherwise = tidyr::tibble("NA"))
+
+words_dfs <- word_count %>% 
+  mutate(sample_tweets = future_map(word_count$word, possible_none)) %>% 
+  unnest(sample_tweets)
+write_csv(words_dfs,"top_words_d8_sample_tweets.csv")
+
+
+words_dfs %>% 
+  group_by(word) %>% 
+  summarize(count= n())
+         
+         
+
+
+```
 
