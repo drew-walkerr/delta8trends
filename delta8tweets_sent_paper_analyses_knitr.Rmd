@@ -56,6 +56,8 @@ today <- as.POSIXct(Sys.Date())
 
 ```{r delta8tweets}
 d8_tweets <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
+
+d8_tweets_raw <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
 ```
 
 # prepping for nlp
@@ -370,7 +372,7 @@ delta_thc <- d8_tweets %>%
 
 set.seed(2585446)
 random_tweets <- function(word){
-random_df <- d8_tweets %>% 
+random_df <- d8_tweets_raw %>% 
   filter(str_detect(text,word)) %>% 
   slice_sample(n=25) %>% 
   select(id,text,name) %>% 
