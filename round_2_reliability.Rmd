@@ -1,0 +1,264 @@
+---
+title: "round_2_reliability"
+author: "Drew Walker"
+date: "10/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(irr)
+library(janitor)
+```
+
+
+```{r read_data}
+raw_annotation_data_dw_cl <- read_csv("Copy of Twitter coding qual delta 8 CRL round 2_dw_merged.csv") %>% 
+  clean_names() 
+colnames(raw_annotation_data_dw_cl)
+ordered <- raw_annotation_data_dw_cl[,order(colnames(raw_annotation_data_dw_cl))] %>% 
+  select(-text,-word,-n,-id,-name,-comments,-cl,-keyword,-dw_notes)
+```
+
+```{r kappas}
+
+
+cbd_smokeshop <- raw_annotation_data_dw_cl %>% 
+  select(cbdsmokeshop,cbdsmokeshop_c)
+
+cbd_smokeshop_kappa <- irr::kappa2(cbd_smokeshop)
+cbd_smokeshop_kappa
+
+retailer <- raw_annotation_data_dw_cl %>% 
+  select(retailer,retailer_c)
+
+retailer_kappa <- irr::kappa2(retailer)
+retailer_kappa
+
+standalone_hashtag <- raw_annotation_data_dw_cl %>% 
+  select(standalone_hashtag,standalone_hashtag_c)
+
+standalone_hashtag_kappa <- irr::kappa2(standalone_hashtag)
+standalone_hashtag_kappa
+
+keyword_mentioned_in_post <- raw_annotation_data_dw_cl %>% 
+  select(keyword_mentioned_in_post,keyword_mentioned_in_post_c)
+
+keyword_mentioned_in_post_kappa <- irr::kappa2(keyword_mentioned_in_post)
+keyword_mentioned_in_post_kappa
+
+#amount_of_drug
+
+amount_of_drug <- raw_annotation_data_dw_cl %>% 
+  select(amount_of_drug,amount_of_drug_c)
+
+amount_of_drug_kappa <- irr::kappa2(amount_of_drug)
+amount_of_drug_kappa
+#sale
+sale <- raw_annotation_data_dw_cl %>% 
+  select(sale,sale_c)
+
+sale_kappa <- irr::kappa2(sale)
+sale_kappa
+
+#edible
+edible <- raw_annotation_data_dw_cl %>% 
+  select(edible,edible_c)
+
+edible_kappa <- irr::kappa2(edible)
+edible_kappa
+
+#food_product
+food_product <- raw_annotation_data_dw_cl %>% 
+  select(food_product,food_product_c)
+
+food_product_kappa <- irr::kappa2(food_product)
+food_product_kappa
+#gummies
+gummies <- raw_annotation_data_dw_cl %>% 
+  select(gummies,gummies_c)
+
+gummies_kappa <- irr::kappa2(gummies)
+gummies_kappa
+#drinks
+drinks <- raw_annotation_data_dw_cl %>% 
+  select(drinks,drinks_c)
+
+drinks_kappa <- irr::kappa2(drinks)
+drinks_kappa
+
+#tinctures
+tinctures <- raw_annotation_data_dw_cl %>% 
+  select(tinctures,tinctures_c)
+tinctures_kappa <- irr::kappa2(tinctures)
+tinctures_kappa
+
+#capsules
+capsules <- raw_annotation_data_dw_cl %>% 
+  select(capsules,capsules_c)
+
+capsules_kappa <- irr::kappa2(capsules)
+capsules_kappa
+#vape
+vape <- raw_annotation_data_dw_cl %>% 
+  select(vape,vape_c)
+
+vape_kappa <- irr::kappa2(vape)
+vape_kappa
+#flower
+flower <- raw_annotation_data_dw_cl %>% 
+  select(flower,flower_c)
+
+flower_kappa <- irr::kappa2(flower)
+flower_kappa
+#flavor_mentioned
+flavor_mentioned <- raw_annotation_data_dw_cl %>% 
+  select(flavor_mentioned,flavor_mentioned_c)
+
+flavor_mentioned_kappa <- irr::kappa2(flavor_mentioned)
+flavor_mentioned_kappa
+#concentrates
+
+#hemp
+hemp <- raw_annotation_data_dw_cl %>% 
+  select(hemp,hemp_c)
+
+hemp_kappa <- irr::kappa2(hemp)
+hemp_kappa
+#pet
+pet <- raw_annotation_data_dw_cl %>% 
+  select(pet,pet_c)
+
+pet_kappa <- irr::kappa2(pet)
+pet_kappa
+#noningestible
+noningestible <- raw_annotation_data_dw_cl %>% 
+  select(noningestible,noningestible_c)
+
+noningestible_kappa <- irr::kappa2(noningestible)
+noningestible_kappa
+#medical_claim
+medical_claim <- raw_annotation_data_dw_cl %>% 
+  select(medical_claim,medical_claim_c)
+
+medical_claim_kappa <- irr::kappa2(medical_claim)
+medical_claim_kappa
+#anxiety
+anxiety <- raw_annotation_data_dw_cl %>% 
+  select(anxiety,anxiety_c)
+
+anxiety_kappa <- irr::kappa2(anxiety)
+anxiety_kappa
+
+
+#skin
+
+#stress
+stress <- raw_annotation_data_dw_cl %>% 
+  select(stress,stress_c)
+
+stress_kappa <- irr::kappa2(stress)
+stress_kappa
+#effects_mentioned
+effects_mentioned <- raw_annotation_data_dw_cl %>% 
+  select(effects_mentioned,effects_mentioned_c)
+
+effects_mentioned_kappa <- irr::kappa2(effects_mentioned)
+effects_mentioned_kappa
+#giveaway
+giveaway <- raw_annotation_data_dw_cl %>% 
+  select(giveaway,giveaway_c)
+
+giveaway_kappa <- irr::kappa2(giveaway)
+giveaway_kappa
+#coupon
+coupon <- raw_annotation_data_dw_cl %>% 
+  select(coupon,coupon_c)
+
+coupon_kappa <- irr::kappa2(coupon)
+coupon_kappa
+#free_shipping
+free_shipping <- raw_annotation_data_dw_cl %>% 
+  select(free_shipping,free_shipping_c)
+
+free_shipping_kappa <- irr::kappa2(free_shipping)
+free_shipping_kappa
+#naturalness_organic
+naturalness_organic <- raw_annotation_data_dw_cl %>% 
+  select(naturalness_organic,naturalness_organic_c)
+
+naturalness_organic_kappa <- irr::kappa2(naturalness_organic)
+naturalness_organic_kappa
+#legal_high
+legal_high <- raw_annotation_data_dw_cl %>% 
+  select(legal_high,legal_high_c)
+
+legal_high_kappa <- irr::kappa2(legal_high)
+legal_high_kappa
+#popularity
+popularity <- raw_annotation_data_dw_cl %>% 
+  select(popularity,popularity_c)
+
+popularity_kappa <- irr::kappa2(popularity)
+popularity_kappa
+#website
+website <- raw_annotation_data_dw_cl %>% 
+  select(website,website_c)
+
+website_kappa <- irr::kappa2(website)
+website_kappa
+
+#premium
+premium <- raw_annotation_data_dw_cl %>% 
+  select(premium,premium_c)
+
+premium_kappa <- irr::kappa2(premium)
+premium_kappa
+#tested
+tested <- raw_annotation_data_dw_cl %>% 
+  select(tested,tested_c)
+
+tested_kappa <- irr::kappa2(tested)
+tested_kappa
+#delta_8_mentioned_in_post
+delta_8_mentioned_in_post <- raw_annotation_data_dw_cl %>% 
+  select(delta_8_mentioned_in_post,delta_8_mentioned_in_post_c)
+
+delta_8_mentioned_in_post_kappa <- irr::kappa2(delta_8_mentioned_in_post)
+delta_8_mentioned_in_post_kappa
+#handmade
+handmade <- raw_annotation_data_dw_cl %>% 
+  select(handmade,handmade_c)
+
+handmade_kappa <- irr::kappa2(handmade)
+handmade_kappa
+#availability
+availability <- raw_annotation_data_dw_cl %>% 
+  select(availability,availability_c)
+
+availability_kappa <- irr::kappa2(availability)
+availability_kappa
+#recipe
+recipe <- raw_annotation_data_dw_cl %>% 
+  select(recipe,recipe_c)
+
+recipe_kappa <- irr::kappa2(recipe)
+recipe_kappa
+#duplicate
+duplicate <- raw_annotation_data_dw_cl %>% 
+  select(duplicate,duplicate_c)
+
+duplicate_kappa <- irr::kappa2(duplicate)
+duplicate_kappa
+#rt
+rt <- raw_annotation_data_dw_cl %>% 
+  select(rt,rt_c)
+
+rt_kappa <- irr::kappa2(rt)
+rt_kappa
+
+
+
+```
+
