@@ -1,0 +1,186 @@
+---
+title: "round_3_reliability"
+author: "Drew Walker"
+date: "10/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(irr)
+library(janitor)
+```
+
+
+```{r read_data}
+raw_annotation_data_dw_cl <- read_csv("round_3_codings_merged.csv") %>% 
+  clean_names() 
+colnames(raw_annotation_data_dw_cl)
+ordered <- raw_annotation_data_dw_cl[,order(colnames(raw_annotation_data_dw_cl))] %>% 
+  select(-text,-word,-n,-id,-name,-comments,-cl,-keyword)
+# FILTER duplicate == 0
+# Change variables to reflect new sheet. 
+```
+
+```{r kappas}
+
+#cbdsmokeshop
+cbd_smokeshop <- raw_annotation_data_dw_cl %>% 
+  select(cbdsmokeshop,cbdsmokeshop_cl)
+
+cbd_smokeshop_kappa <- irr::kappa2(cbd_smokeshop)
+cbd_smokeshop_kappa
+#retailer
+retailer <- raw_annotation_data_dw_cl %>% 
+  select(retailer,retailer_cl)
+
+retailer_kappa <- irr::kappa2(retailer)
+retailer_kappa
+
+#duplicate
+duplicate <- raw_annotation_data_dw_cl %>% 
+  select(duplicate,duplicate_cl)
+
+duplicate_kappa <- irr::kappa2(duplicate)
+duplicate_kappa
+#rt
+rt <- raw_annotation_data_dw_cl %>% 
+  select(rt,rt_cl)
+
+rt_kappa <- irr::kappa2(rt)
+rt_kappa
+
+#keyword_mentioned_in_post
+
+keyword_mentioned_in_post <- raw_annotation_data_dw_cl %>% 
+  select(keyword_mentioned_in_post,keyword_mentioned_in_post_cl)
+
+keyword_mentioned_in_post_kappa <- irr::kappa2(keyword_mentioned_in_post)
+keyword_mentioned_in_post_kappa
+
+
+#amount_of_drug
+
+amount_of_drug <- raw_annotation_data_dw_cl %>% 
+  select(amount_of_drug,amount_of_drug_cl)
+
+amount_of_drug_kappa <- irr::kappa2(amount_of_drug)
+amount_of_drug_kappa
+
+
+#ingestible_edible
+ingestible_edible <- raw_annotation_data_dw_cl %>% 
+  select(ingestible_edible,ingestible_edible_cl)
+
+ingestible_edible_kappa <- irr::kappa2(ingestible_edible)
+ingestible_edible_kappa
+#vape
+vape <- raw_annotation_data_dw_cl %>% 
+  select(vape,vape_cl)
+
+vape_kappa <- irr::kappa2(vape)
+vape_kappa
+#flower_combustible
+flower_combustible <- raw_annotation_data_dw_cl %>% 
+  select(flower_combustible,flower_combustible_cl)
+
+flower_kappa <- irr::kappa2(flower_combustible)
+flower_kappa
+
+#noningestible
+noningestible <- raw_annotation_data_dw_cl %>% 
+  select(non_ingestible,non_ingestible_cl)
+
+noningestible_kappa <- irr::kappa2(noningestible)
+noningestible_kappa
+
+#delta_8_mentioned_in_post
+delta_8_specific <- raw_annotation_data_dw_cl %>% 
+  select(delta_8_specific,delta_8_specific_cl)
+
+delta_8_specific_kappa <- irr::kappa2(delta_8_specific)
+delta_8_specific_kappa
+
+#flavoring_mentioned
+flavoring_mentioned <- raw_annotation_data_dw_cl %>% 
+  select(flavoring_mentioned,flavoring_mentioned_cl)
+
+flavoring_mentioned_kappa <- irr::kappa2(flavoring_mentioned)
+flavoring_mentioned_kappa
+
+#tested
+tested <- raw_annotation_data_dw_cl %>% 
+  select(tested,tested_cl)
+
+tested_kappa <- irr::kappa2(tested)
+tested_kappa
+
+#medical_claim
+therapeutic_claim <- raw_annotation_data_dw_cl %>% 
+  select(therapeutic_claim,therapeutic_claim_cl)
+
+therapeutic_claim_kappa <- irr::kappa2(therapeutic_claim)
+therapeutic_claim_kappa
+
+
+
+
+#effects_mentioned
+effects_mentioned <- raw_annotation_data_dw_cl %>% 
+  select(effects_mentioned,effects_mentioned_cl)
+
+effects_mentioned_kappa <- irr::kappa2(effects_mentioned)
+effects_mentioned_kappa
+#giveaway
+sale_promotion_or_giveaway <- raw_annotation_data_dw_cl %>% 
+  select(sale_promotion_or_giveaway,sale_promotion_or_giveaway_cl)
+
+sale_promotion_or_giveaway_kappa <- irr::kappa2(sale_promotion_or_giveaway)
+sale_promotion_or_giveaway_kappa
+
+#legal_high
+legal_high <- raw_annotation_data_dw_cl %>% 
+  select(legal_high,legal_high_cl)
+
+legal_high_kappa <- irr::kappa2(legal_high)
+legal_high_kappa
+#popularity
+popularity <- raw_annotation_data_dw_cl %>% 
+  select(popularity,popularity_cl)
+
+popularity_kappa <- irr::kappa2(popularity)
+popularity_kappa
+#website
+website <- raw_annotation_data_dw_cl %>% 
+  select(website,website_cl)
+
+website_kappa <- irr::kappa2(website)
+website_kappa
+
+#availability
+availability <- raw_annotation_data_dw_cl %>% 
+  select(availability,availability_cl)
+
+availability_kappa <- irr::kappa2(availability)
+availability_kappa
+
+#naturalness
+naturalness <- raw_annotation_data_dw_cl %>% 
+  select(naturalness,naturalness_cl)
+
+naturalness_kappa <- irr::kappa2(naturalness)
+naturalness_kappa
+```
+
+#Delta 8 ml dataset 
+```{r delta8-ml}
+#delta8_ml <- ordered %>% 
+#mutate(delta8_combined = case_when(delta_8_mentioned_in_post == "1" #| delta_8_mentioned_in_post_c == "1" ~ "1", TRUE ~ "0")) 
+#
+#delta8_ml$text <- raw_annotation_data_dw_cl$text 
+#
+#delta8_ml_clean <- delta8_ml %>% 
+#  select(text,delta8_combined)
+```
+
