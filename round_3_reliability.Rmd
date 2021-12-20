@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(irr)
 library(janitor)
+library(table1)
 ```
 
 
@@ -18,7 +19,8 @@ raw_annotation_data_dw_cl <- read_csv("round_3_codings_merged.csv") %>%
   clean_names() 
 colnames(raw_annotation_data_dw_cl)
 ordered <- raw_annotation_data_dw_cl[,order(colnames(raw_annotation_data_dw_cl))] %>% 
-  select(-text,-word,-n,-id,-name,-comments,-cl,-keyword)
+  select(-text,-word,-n,-id,-name,-comments,-cl,-keyword) %>% 
+  filter(duplicate != 1)
 # FILTER duplicate == 0
 # Change variables to reflect new sheet. 
 ```
@@ -172,6 +174,56 @@ naturalness <- raw_annotation_data_dw_cl %>%
 naturalness_kappa <- irr::kappa2(naturalness)
 naturalness_kappa
 ```
+
+
+```{r combine-labels}
+combined <- ordered %>% 
+  mutate(rt_comb = case_when(rt==1|rt_cl==1 ~1,TRUE~0),
+         cbdsmoke_comb = case_when(cbdsmokeshop==1|cbdsmokeshop_cl==1 ~1,TRUE~0),
+         non_ingestible_comb = case_when(non_ingestible==1|non_ingestible_cl==1 ~1,TRUE~0),
+         keyword_comb = case_when(keyword_mentioned_in_post==1|keyword_mentioned_in_post_cl==1 ~1,TRUE~0),
+         retailer_comb = case_when(retailer==1|retailer_cl==1 ~1,TRUE~0),
+         flower_comb = case_when(flower_combustible==1|flower_combustible_cl==1 ~1,TRUE~0),
+         sale_promotion_or_giveaway_comb = case_when(sale_promotion_or_giveaway==1|sale_promotion_or_giveaway_cl==1 ~1,TRUE~0),
+         flavoring_mentioned_comb = case_when(flavoring_mentioned==1|flavoring_mentioned_cl==1 ~1,TRUE~0),
+         amount_comb = case_when(amount_of_drug==1|amount_of_drug_cl==1 ~1,TRUE~0),
+         ingestible_comb = case_when(ingestible_edible==1|ingestible_edible_cl==1 ~1,TRUE~0),
+         vape_comb = case_when(vape==1|vape_cl==1 ~1,TRUE~0),
+         website_comb = case_when(website==1|website_cl==1 ~1,TRUE~0),
+         popularity_comb = case_when(popularity==1|popularity_cl==1 ~1,TRUE~0),
+         delta_8_specific_comb = case_when(delta_8_specific==1|delta_8_specific_cl==1 ~1,TRUE~0),
+         legal_high_comb = case_when(legal_high==1|legal_high_cl==1 ~1,TRUE~0),
+         naturalness_comb = case_when(naturalness==1|naturalness_cl==1 ~1,TRUE~0),
+         therapeutic_comb = case_when(therapeutic_claim==1|therapeutic_claim_cl==1 ~1,TRUE~0),
+         availability_comb = case_when(availability==1|availability_cl==1 ~1,TRUE~0),
+         duplicate_comb = case_when(duplicate==1|duplicate_cl==1 ~1,TRUE~0),
+         tested_comb = case_when(tested==1|tested_cl==1 ~1,TRUE~0),
+         effects_mentioned_comb = case_when(effects_mentioned==1|effects_mentioned_cl==1 ~1,TRUE~0)
+         )
+table(combined$rt_comb)
+table(combined$cbdsmoke_comb)
+table(combined$non_ingestible_comb)
+table(combined$keyword_comb)
+table(combined$retailer_comb)
+table(combined$flower_comb)
+table(combined$sale_promotion_or_giveaway_comb)
+table(combined$flavoring_mentioned_comb)
+table(combined$amount_comb)
+table(combined$ingestible_comb)
+table(combined$vape_comb)
+table(combined$website_comb)
+table(combined$popularity_comb)
+table(combined$delta_8_specific_comb)
+table(combined$legal_high_comb)
+table(combined$naturalness_comb)
+table(combined$therapeutic_comb)
+table(combined$availability_comb)
+table(combined$duplicate_comb)
+table(combined$tested_comb)
+table(combined$effects_mentioned_comb)
+```
+
+
 
 #Delta 8 ml dataset 
 ```{r delta8-ml}
