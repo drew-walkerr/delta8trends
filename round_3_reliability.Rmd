@@ -23,6 +23,8 @@ ordered <- raw_annotation_data_dw_cl[,order(colnames(raw_annotation_data_dw_cl))
   filter(duplicate != 1)
 # FILTER duplicate == 0
 # Change variables to reflect new sheet. 
+str(ordered)
+ordered$non_ingestible <- as.numeric(ordered$non_ingestible)
 ```
 
 ```{r kappas}
@@ -173,6 +175,33 @@ naturalness <- raw_annotation_data_dw_cl %>%
 
 naturalness_kappa <- irr::kappa2(naturalness)
 naturalness_kappa
+```
+
+```{r pooled-kappas}
+
+ordered_20_codes <- ordered %>% 
+  select(-duplicate, -duplicate_cl)
+
+ordered_pivoted <- ordered_20_codes %>% 
+  pivot_longer(
+    cols= everything(),
+    names_to = c("coder"),
+    names_pattern = "(_cl$)",
+    values_to = "score"
+  )%>% 
+  replace_na(list(coder="drew"))
+
+ordered_pivot_back <- ordered_pivoted %>% 
+  pivot_wider(
+    names_from="coder",
+    values_from = "score",
+    ) %>% 
+  unnest() 
+
+pooled_kappa <- irr::kappa2(ordered_pivot_back)
+pooled_kappa
+
+
 ```
 
 
