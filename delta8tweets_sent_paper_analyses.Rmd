@@ -32,6 +32,7 @@ library(topicmodels)
 library(scales)
 library(gt)
 library(webshot)
+library(sentimentr)
 library(syuzhet)
 library(gitcreds)
 library(credentials)
@@ -61,7 +62,7 @@ today <- as.POSIXct(Sys.Date())
 hashtag_delta8_tweets_jan_2020 <-  get_all_tweets(
   query = "#delta8",
   start_tweets = "2020-01-01T00:00:00Z",
-  end_tweets = "2021-08-13T00:00:00Z",
+  end_tweets = "2021-08-20T00:00:00Z",
   bearer_token,data_path = "data/",
   n = 100000)
 
@@ -79,7 +80,7 @@ write_rds(hashtag_delta8_tweets_and_user_info_jan_2020, "hashtag_delta8_tweets_a
 
 # Tweet data NLP and trend analysis
 
-```{r delta8tweets,}
+```{r delta8tweets}
 d8_tweets <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
 ```
 
@@ -206,7 +207,7 @@ d8_tweets_by_date <- d8_tweets %>%
 tweets_per_day <- ggplot(d8_tweets_by_date, aes(day, tweets_per_day)) +
   geom_line(aes(y = tweets_per_day), color = "darkred")+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to August 3, 2021", y = "Tweets per Day", title = "Frequency of Original Tweets per day mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 20, 2021", y = "Tweets per Day", title = "Frequency of Original Tweets per day mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 tweets_per_day
@@ -217,7 +218,7 @@ ggsave(tweets_per_day_filename)
 likes_per_day <- ggplot(d8_tweets_by_date, aes(day, likes_per_day)) +
   geom_line(aes(y = likes_per_day), color = "darkblue")+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to August 3, 2021", y = "Likes per Day", title = "Frequency of Tweet likes mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 20, 2021", y = "Likes per Day", title = "Frequency of Tweet likes mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 likes_per_day
@@ -227,7 +228,7 @@ ggsave(likes_per_day_file_name)
 retweets_per_day <- ggplot(d8_tweets_by_date, aes(day, retweets_per_day)) +
   geom_line(aes(y = retweets_per_day), color = "orange")+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to August 3, 2021", y = "Retweets per Day", title = "Frequency of Tweet retweets mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 20, 2021", y = "Retweets per Day", title = "Frequency of Tweet retweets mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 retweets_per_day
@@ -237,7 +238,7 @@ ggsave(retweets_per_day_file_name)
 quotes_per_day <- ggplot(d8_tweets_by_date, aes(day, quotes_per_day)) +
   geom_line(aes(y = quotes_per_day))+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to August 3, 2021", y = "quotes per Day", title = "Frequency of Tweet quotes mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 20, 2021", y = "quotes per Day", title = "Frequency of Tweet quotes mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 quotes_per_day
@@ -247,7 +248,7 @@ ggsave(quotes_per_day_file_name)
 replies_per_day <- ggplot(d8_tweets_by_date, aes(day, replies_per_day)) +
   geom_line(aes(y = replies_per_day))+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to August 3, 2021", y = "replies per Day", title = "Frequency of Tweet replies mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 20, 2021", y = "replies per Day", title = "Frequency of Tweet replies mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 replies_per_day
@@ -285,21 +286,60 @@ sentiment_syuzhet_by_day <- syuzhet_df %>%
   dplyr::group_by(day) %>% 
   dplyr::summarize(sentiment_avg_day = weighted.mean(syuzhet_sentiment))
 
+#all datetimes sentiment dataframe
+sentiment_syuzhet_tweets <- syuzhet_df %>% 
+  left_join(sentiment_syuzhet) %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day))
 
 
 sentiment_per_day_plot <- ggplot(sentiment_syuzhet_by_day, aes(day, sentiment_avg_day)) +
   geom_line(aes(y = sentiment_avg_day))+
   geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to August 3, 2021", y = "Weighted Average Syuzhet Sentiment per Day", title = "Change in sentiment in Tweets mentioning #delta8")+
+  labs(x = "January 1, 2020 to August 20, 2021", y = "Weighted Average Syuzhet Sentiment per Day", title = "Change in sentiment in Tweets mentioning #delta8")+
   scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
     theme_classic()
 sentiment_per_day_plot
 sentiment_per_day_plot_filename <- paste0(here("syuzhet_sentiment"),st,".png") 
 ggsave(sentiment_per_day_plot_filename)
 
+sentiment_all_plot <- ggplot(sentiment_syuzhet_tweets, aes(day, syuzhet_sentiment)) +
+  geom_point(aes(y = syuzhet_sentiment), alpha = .05)+
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(x = "January 1, 2020 to August 20, 2021", y = "Tweet Syuzhet Sentiments scores", title = "Change in sentiment in Tweets mentioning #delta8")+
+  scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
+    theme_classic()
+sentiment_all_plot
+
 stats.default(sentiment_syuzhet$syuzhet_sentiment)
 table1(~syuzhet_sentiment, data = sentiment_syuzhet)
-ggplot(sentiment_syuzhet$syuzhet_sentiment)
+
+negative_syuz <- sentiment_syuzhet %>% 
+  arrange(-syuzhet_sentiment) %>% 
+  head(n = 10) 
+gt(negative_syuz) 
+
+positive_syuz <- sentiment_syuzhet %>% 
+  arrange(syuzhet_sentiment) %>% 
+  head(n = 10)
+gt(positive_syuz)
+top10_pos_neg_syuz <- bind_rows(negative_syuz, positive_syuz) 
+
+
+hist(sentiment_syuzhet$syuzhet_sentiment, main = "Distribution of Syuzhet Tweet-level Sentiment scores", xlab = "Szyuzhet Tweet-Level Sentiment")
+
+sentiment_distribution <- ggplot(sentiment_syuzhet, aes(x=syuzhet_sentiment)) + 
+  geom_histogram(binwidth = .5)+
+  ggtitle("Distribution of Tweet-level Sentiment")
+
+sentiment_distribution_filename <- paste0(here("sentiment_distribution"),st,".png") 
+ggsave(sentiment_distribution_filename)
+
+
+
+#investigate tweets within (-.5,0) score, seems most popular categorization
+
 #test
 ```
 
