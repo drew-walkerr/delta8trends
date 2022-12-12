@@ -16,7 +16,6 @@ library(operators)
 library(magrittr)
 library(stm)
 library(here)
-library(postmastr)
 library(textmineR)
 library(tidyverse)
 library(tidytext)
@@ -30,11 +29,13 @@ library(tidygeocoder)
 library(ggpubr)
 library(topicmodels)
 library(scales)
+library(purrr)
 library(gt)
 library(webshot)
 library(sentimentr)
 library(syuzhet)
 library(gitcreds)
+library(textdata)
 library(credentials)
 library(patchwork)
 APIToken <- read_csv("apikeys.csv")
@@ -137,10 +138,10 @@ ggsave(word_count_bar_filename)
 nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
 
 nrc_words <- mergeable_word_count %>%
-  inner_join(nrc, by="word")
+  left_join(nrc, by="word")
 # Top words sentiment
 top_30_word_sentiment <- word_count %>%
-  inner_join(nrc, by="word")
+  left_join(nrc, by="word")
 # only top word was enjoy 
 
 nrc_sentiment_top_terms <- nrc_words %>%
@@ -210,15 +211,32 @@ likes_per_day
 likes_per_day_file_name <- paste0(here("likes_per_day"),st,".png") 
 ggsave(likes_per_day_file_name)
 
-retweets_per_day <- ggplot(d8_tweets_by_date, aes(day, retweets_per_day)) +
-  geom_line(aes(y = retweets_per_day), color = "orange")+
-  labs(y = "Retweets per Day", title = "#Delta8 Retweets")+
+#rerunning retweets,quotes, and replies 
+
+retweets <- d8_tweets_raw %>% 
+  filter(referenced_tweets != "NULL")
+
+
+retweet_d8_tweets_by_date <- retweets %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day)) %>% 
+  dplyr::group_by(day) %>% 
+  dplyr::summarize(tweets_per_day = n()) %>% 
+  mutate(month = month(day),
+         year = year(day))
+
+retweets_per_day <- ggplot(retweet_d8_tweets_by_date, aes(day, retweets_per_day)) +
+  geom_line(aes(y = tweets_per_day), color = "orange")+
+  labs(y = "RTs, quotes, or replies per Day", title = "#Delta8 Retweets, quotes, or replies per day")+
   scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
     theme_classic()+ 
   theme(axis.title.x=element_blank())
 retweets_per_day
 retweets_per_day_file_name <- paste0(here("retweets_per_day"),st,".png") 
 ggsave(retweets_per_day_file_name)
+
+
 
 quotes_per_day <- ggplot(d8_tweets_by_date, aes(day, quotes_per_day)) +
   geom_line(aes(y = quotes_per_day))+
@@ -239,7 +257,7 @@ replies_per_day
 replies_per_day_file_name <- paste0(here("replies_per_day"),st,".png") 
 ggsave(replies_per_day_file_name)
 
-all_graphs <- tweets_per_day + likes_per_day + retweets_per_day + replies_per_day + plot_layout(widths = c(2, 2))
+all_graphs <- tweets_per_day / likes_per_day / retweets_per_day + plot_layout(widths = c(3, 1))
 
 all_graphs
 
@@ -409,6 +427,12 @@ retweeted_check <- d8_tweets %>%
 users <- retweeted_check %>% 
   distinct(author_id, .keep_all = TRUE)
   
+original_tweets <- d8_tweets_raw %>% 
+  filter(referenced_tweets == "NULL")
+#30826 original tweets
+#retweets
+retweets <- d8_tweets_raw %>% 
+  filter(referenced_tweets != "NULL")
 
 ```
 
@@ -417,3 +441,138 @@ author_list <- d8_tweets %>%
   distinct(author_id, .keep_all = TRUE)
 ```
 
+## Revisions code
+
+### Tweet Normalization
+* Compare frequencies of tweet 
+```{r normalization}
+users_per_year_total <- read_csv("estimated_users_per_year.csv")
+
+users_per_year_total_clean <- users_per_year_total %>% 
+  mutate(total_twitter_users = number_of_twitter_users_in_millions*1000000)
+
+d8_users_per_year <- d8_tweets %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day)) %>% 
+  group_by(year) %>% 
+  summarize(users_per_year = n_distinct(author_id))
+
+normalized_users_per_year_df <- left_join(d8_users_per_year,users_per_year_total_clean, by = "year")
+
+normalized_user_df_clean <- normalized_users_per_year_df %>% 
+  mutate(d8_users_per_hund_thoussand = (users_per_year/total_twitter_users)*100000)
+normalized_user_df_clean
+```
+
+## Control group df 
+Make control group using query that is only stop words, compare sentiment analysis frequencies 
+```{r control-df}
+APIToken <- read_csv("apikeys.csv")
+api_key <- as.character(APIToken[1,1])
+api_secret_key <- as.character(APIToken[1,2])
+bearer_token <- as.character(APIToken[1,3])
+
+snowball <- stop_words[stop_words$lexicon == "snowball",]
+stopwords_list <- as.list(snowball$word)
+
+#Since query character limit is 1600 or so, we have to make a for loop for all of the words or figure out how 
+
+stop_word_tweets <- function(stopword){ 
+stop_word_tweets_df <- get_all_tweets(
+  query = stopword,
+  bearer_token = bearer_token,
+  start_tweets = "2020-01-01T00:00:00Z",
+  end_tweets = "2021-09-26T00:00:00Z",
+  data_path = "control_data/",
+  n = 1000)
+return(stop_word_tweets_df)
+}
+library(purrr)
+library(furrr)
+possible_stop_word_tweets <- possibly(stop_word_tweets,otherwise = tibble("NA"))
+
+stop_words_tweet_dfs <- snowball %>% 
+  mutate(stop_word_df = future_map(word,possible_stop_word_tweets)) 
+
+flattened_df <- unnest(stop_words_tweet_dfs)
+
+word_counts = flattened_df %>% 
+  group_by(word) %>% 
+  summarise(cound = n())
+
+set.seed(12345)
+
+random_df <- flattened_df %>% 
+  slice_sample(n=41828)
+
+random_df$text <- gsub("RT.*:", "", random_df$text)
+random_df$text <- gsub("@.* ", "", random_df$text)
+# sub out digits , punctuation
+#Should digits be included in case of delta 8, delta 10? 
+random_df_text_id <- random_df %>% 
+   select(id,text)
+random_df$text <- gsub('[[:punct:]]+', '', random_df$text)
+random_text_cleaning_tokens <- random_df %>% 
+  tidytext::unnest_tokens(word, text) %>% 
+  left_join(random_df_text_id, by = "id") %>%
+  mutate(raw_text = text)
+#remove words? like 
+random_text_cleaning_tokens$word <- gsub('^https|amp','', random_text_cleaning_tokens$word)
+random_text_cleaning_tokens <- random_text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
+  anti_join(stop_words)
+# Mergeable wordcount 
+random_word_count <- random_text_cleaning_tokens %>% 
+  filter(word != "") %>% 
+  count(word) %>% 
+  arrange(-n) %>% 
+  slice_max(n, n = 30) %>% 
+  filter(word != "delta8")
+random_mergeable_word_count <- random_text_cleaning_tokens %>% 
+  filter(word != "") %>% 
+  count(word)
+
+# Merge with NRC lexicon 
+
+nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
+random_nrc_words <- random_mergeable_word_count %>%
+  left_join(nrc, by="word")
+##is inner join the best to use? may be better to do left-Join to calculate actual percentage and ID non-sentiment associated words
+
+
+
+random_nrc_sentiment_top_terms <- random_nrc_words %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 5) %>% 
+  mutate(top_terms = paste0(word, collapse = " , ")) %>% 
+  ungroup() %>%
+  arrange(sentiment, -n) 
+kable(random_nrc_sentiment_top_terms)
+
+
+
+
+random_bar_words<- random_nrc_words %>%
+  group_by(sentiment) %>% # group by sentiment type
+  summarize(word_count = sum(n)) %>% # counts number of rows
+  arrange(desc(word_count)) %>% 
+  mutate(percent = word_count/sum(word_count)) %>% 
+  left_join(random_nrc_sentiment_top_terms, by = "sentiment")
+
+random_bar_words_table <- random_bar_words %>% 
+  select(sentiment,word_count,percent,top_terms) %>% 
+  rename(word_count_by_sentiment = word_count) %>% 
+  distinct(sentiment,word_count_by_sentiment,percent,top_terms)
+
+
+random_bar_words_table_gt <- gt(random_bar_words_table)
+random_bar_words_table_gt
+
+random_bar_words_table_gt %>% 
+  gtsave("random_nrc_sentiment_table.html", inline_css = TRUE)
+```
+
+## next steps
+
+* Join random sentiment dataframe with delta 8, compare % differences among each 
+* 
