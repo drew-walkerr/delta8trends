@@ -38,6 +38,9 @@ library(gitcreds)
 library(textdata)
 library(credentials)
 library(patchwork)
+library(quanteda)
+library(quanteda.dictionaries)
+#devtools::install_github("kbenoit/quanteda.dictionaries")
 APIToken <- read_csv("apikeys.csv")
 api_key <- as.character(APIToken[1,1])
 api_secret_key <- as.character(APIToken[1,2])
@@ -135,8 +138,35 @@ ggsave(word_count_bar_filename)
 
 
 ```{r, nrc}
-nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
+library(furrr)
+#using furrr for parallel processing, help to prevent crashing w/possibly
+possible_nrc_sentiment <- possibly(get_nrc_sentiment,otherwise = tibble("NA"))
 
+
+nrc_sentiment_d8 <- d8_tweets %>% 
+  mutate(nrc_sentiment_df = future_map(text, possible_nrc_sentiment),
+    corpus = "delta8") %>% 
+      unnest()
+    
+nrc_sentiment_d8_by_author <- nrc_sentiment_d8 %>% 
+  group_by(author_id) %>% 
+  summarize(username = username,
+            description = description1,
+            number_of_tweets = n(),
+            anger = mean(anger),
+            anticipation = mean(anticipation),
+            disgust = mean(disgust),
+            fear = mean(fear),
+            joy = mean(joy),
+            sadness = mean(sadness),
+            surprise = mean(surprise),
+            trust = mean(trust),
+            negative = mean(negative),
+            positive = mean(positive)) %>% 
+  distinct(author_id, .keep_all = TRUE) %>% 
+  group_by(author_id) %>% 
+  mutate(percentage_of_tweets = number_of_tweets/41828)
+mean(nrc_sentiment_d8_by_author$number_of_tweets)
 nrc_words <- mergeable_word_count %>%
   left_join(nrc, by="word")
 # Top words sentiment
@@ -268,110 +298,7 @@ table1(~ tweets_per_day|factor(year), data=d8_tweets_by_date)
 
 ```
 
-# Syuzhet Sentiment Analysis with negation weighting method using sentimentr 
 
-* by tweet
-
-```{r, syuzhet method}
-syuzhet_df <- readRDS("hashtag_delta8_tweets_and_user_info_jan_2020.rds")
-
-syuzhet_df$text <- gsub("RT.*:", "", syuzhet_df$text)
-syuzhet_df$text <- gsub("@.* ", "", syuzhet_df$text)
-# sub out digits , punctuation
-#Should digits be included in case of delta 8, delta 10? 
-syuzhet_df_id <- syuzhet_df %>% 
-   select(id,text)
-
-sentiment_syuzhet <- syuzhet_df_id %>% 
-  mutate(syuzhet_sentiment = get_sentiment(syuzhet_df_id$text))
-
-
-# sentiment over time
-
-sentiment_syuzhet_by_day <- syuzhet_df %>% 
-  left_join(sentiment_syuzhet) %>% 
-  mutate(day = as.Date(created_at.x),
-         month = month(day),
-         year = year(day)) %>% 
-  dplyr::group_by(day) %>% 
-  dplyr::summarize(sentiment_avg_day = weighted.mean(syuzhet_sentiment))
-
-#all datetimes sentiment dataframe
-sentiment_syuzhet_tweets <- syuzhet_df %>% 
-  left_join(sentiment_syuzhet) %>% 
-  mutate(day = as.Date(created_at.x),
-         month = month(day),
-         year = year(day))
-
-
-sentiment_per_day_plot <- ggplot(sentiment_syuzhet_by_day, aes(day, sentiment_avg_day)) +
-  geom_line(aes(y = sentiment_avg_day))+
-  geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to August 25, 2021", y = "Weighted Average Syuzhet Sentiment per Day", title = "Change in sentiment in Tweets mentioning #delta8")+
-  scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
-    theme_classic()
-sentiment_per_day_plot
-sentiment_per_day_plot_filename <- paste0(here("syuzhet_sentiment"),st,".png") 
-ggsave(sentiment_per_day_plot_filename)
-
-sentiment_all_plot <- ggplot(sentiment_syuzhet_tweets, aes(day, syuzhet_sentiment)) +
-  geom_point(aes(y = syuzhet_sentiment), alpha = .05)+
-  geom_smooth(method = "loess", se = FALSE) +
-  labs(x = "January 1, 2020 to August 25, 2021", y = "Tweet Syuzhet Sentiments scores", title = "Change in sentiment in Tweets mentioning #delta8")+
-  scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+
-    theme_classic()
-sentiment_all_plot
-sentiment_all_plot_filename <- paste0(here("syuzhet_all_tweets"),st,".png") 
-ggsave(sentiment_all_plot_filename)
-
-stats.default(sentiment_syuzhet$syuzhet_sentiment)
-table1(~syuzhet_sentiment, data = sentiment_syuzhet)
-
-positive_syuz <- sentiment_syuzhet %>% 
-  arrange(-syuzhet_sentiment) %>% 
-  head(n = 10) %>% 
-  select(-id)
-gt(positive_syuz) %>%
-  gtsave("positive_syuz.html", inline_css = TRUE)
-
-
-negative_syuz <- sentiment_syuzhet %>% 
-  arrange(syuzhet_sentiment) %>% 
-  head(n = 10) %>% 
-  select(-id)
-
-gt(negative_syuz)%>%
-  gtsave("negative_syuz.html", inline_css = TRUE)
-top10_pos_neg_syuz <- bind_rows(negative_syuz, positive_syuz) 
-
-zero_syuz <- sentiment_syuzhet %>% 
-  filter(syuzhet_sentiment == 0.0) %>% 
-  select(-id)
-
-zero_syuz_head <- zero_syuz %>% 
-  head(n = 10)%>% 
-  gt() %>% 
-  gtsave("0_syuz.html", inline_css = TRUE)
-
-hist(sentiment_syuzhet$syuzhet_sentiment, main = "Distribution of Syuzhet Tweet-level Sentiment scores", xlab = "Szyuzhet Tweet-Level Sentiment")
-
-sentiment_distribution <- ggplot(sentiment_syuzhet, aes(x=syuzhet_sentiment)) + 
-  geom_histogram(binwidth = .25)+
-  ggtitle("Distribution of Tweet-level Sentiment")+
-  labs(x = "Syuzhet Tweet Sentiment Score", y = "Count")+
-  theme_pubclean()
-
-sentiment_distribution_filename <- paste0(here("sentiment_distribution"),st,".png") 
-ggsave(sentiment_distribution_filename)
-
-
-
-#investigate tweets within (-.5,0) score, seems most popular categorization
-
-
-
-
-```
 #Unique tweet by text
 ```{r unique-tweet-text}
 unique_text_d8_tweets <- d8_tweets %>% 
@@ -381,7 +308,7 @@ unique_text_d8_tweets <- d8_tweets %>%
 # Random 25 tweets from each of the top terms identified
 https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html
 
-```{r}
+```{r random-qualitative-tweets}
 
 delta_thc <- d8_tweets %>% 
   filter(str_detect(text,"deltathc"))
@@ -398,7 +325,6 @@ random_df <- d8_tweets_raw %>%
          effects_mentioned = "")
 return(random_df)
 }
-
 
 
 library(purrr)
@@ -467,7 +393,7 @@ normalized_user_df_clean
 
 ## Control group df 
 Make control group using query that is only stop words, compare sentiment analysis frequencies 
-```{r control-df}
+```{r control-df, eval = FALSE}
 APIToken <- read_csv("apikeys.csv")
 api_key <- as.character(APIToken[1,1])
 api_secret_key <- as.character(APIToken[1,2])
@@ -495,7 +421,11 @@ possible_stop_word_tweets <- possibly(stop_word_tweets,otherwise = tibble("NA"))
 stop_words_tweet_dfs <- snowball %>% 
   mutate(stop_word_df = future_map(word,possible_stop_word_tweets)) 
 
-flattened_df <- unnest(stop_words_tweet_dfs)
+saveRDS(stop_words_tweet_dfs, file= "random_stopword_tweets.rds")
+```
+```{r load-control}
+readRDS("random_stopword_tweets.rds")
+flattened_df <- unnest(random_stopword_tweets)
 
 word_counts = flattened_df %>% 
   group_by(word) %>% 
@@ -505,7 +435,10 @@ set.seed(12345)
 
 random_df <- flattened_df %>% 
   slice_sample(n=41828)
+``` 
 
+
+```{r control-df-preprocessing}
 random_df$text <- gsub("RT.*:", "", random_df$text)
 random_df$text <- gsub("@.* ", "", random_df$text)
 # sub out digits , punctuation
@@ -521,6 +454,10 @@ random_text_cleaning_tokens <- random_df %>%
 random_text_cleaning_tokens$word <- gsub('^https|amp','', random_text_cleaning_tokens$word)
 random_text_cleaning_tokens <- random_text_cleaning_tokens %>% filter(!(nchar(word) == 1))%>% 
   anti_join(stop_words)
+```
+
+
+```{r control-df-sentiment-analysis}
 # Mergeable wordcount 
 random_word_count <- random_text_cleaning_tokens %>% 
   filter(word != "") %>% 
@@ -532,12 +469,38 @@ random_mergeable_word_count <- random_text_cleaning_tokens %>%
   filter(word != "") %>% 
   count(word)
 
-# Merge with NRC lexicon 
+
+# RANDOM SENTIMENT ANALYSIS
+
+sentiment_random_df <- random_df %>%  
+  mutate(nrc_sentiment_df = future_map(text, possible_nrc_sentiment),
+    corpus = "control") %>% 
+      unnest()
+
+nrc_sentiment_control_by_author <- sentiment_random_df %>% 
+  group_by(author_id) %>% 
+  summarize(username = username,
+            description = description1,
+            number_of_tweets = n(),
+            anger = mean(anger),
+            anticipation = mean(anticipation),
+            disgust = mean(disgust),
+            fear = mean(fear),
+            joy = mean(joy),
+            sadness = mean(sadness),
+            surprise = mean(surprise),
+            trust = mean(trust),
+            negative = mean(negative),
+            positive = mean(positive)) %>% 
+  distinct(author_id, .keep_all = TRUE) %>% 
+  group_by(author_id) %>% 
+  mutate(percentage_of_tweets = number_of_tweets/41828)
+mean(nrc_sentiment_d8_by_author$number_of_tweets)
+
 
 nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
 random_nrc_words <- random_mergeable_word_count %>%
   left_join(nrc, by="word")
-##is inner join the best to use? may be better to do left-Join to calculate actual percentage and ID non-sentiment associated words
 
 
 
@@ -548,8 +511,6 @@ random_nrc_sentiment_top_terms <- random_nrc_words %>%
   ungroup() %>%
   arrange(sentiment, -n) 
 kable(random_nrc_sentiment_top_terms)
-
-
 
 
 random_bar_words<- random_nrc_words %>%
@@ -574,5 +535,16 @@ random_bar_words_table_gt %>%
 
 ## next steps
 
-* Join random sentiment dataframe with delta 8, compare % differences among each 
-* 
+* Join random sentiment dataframe with delta 8
+
+```{r combined-control-and-d8}
+combined_sentiment_df <- bind_rows(nrc_sentiment_control_by_author,nrc_sentiment_d8_by_author)
+saveRDS(combined_sentiment_df, file= "combined_author_sentiment_df.rds")
+```
+
+Compare % differences among each 
+```{r}
+readRDS("combined_author_sentiment_df.rds")
+
+```
+
