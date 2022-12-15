@@ -40,6 +40,11 @@ library(credentials)
 library(patchwork)
 library(quanteda)
 library(quanteda.dictionaries)
+library(sjPlot)
+library(sjmisc)
+library(patchwork)
+library(sjlabelled)
+
 #devtools::install_github("kbenoit/quanteda.dictionaries")
 APIToken <- read_csv("apikeys.csv")
 api_key <- as.character(APIToken[1,1])
@@ -150,8 +155,7 @@ nrc_sentiment_d8 <- d8_tweets %>%
     
 nrc_sentiment_d8_by_author <- nrc_sentiment_d8 %>% 
   group_by(author_id) %>% 
-  summarize(username = username,
-            description = description1,
+  summarize(corpus= corpus,
             number_of_tweets = n(),
             anger = mean(anger),
             anticipation = mean(anticipation),
@@ -479,8 +483,7 @@ sentiment_random_df <- random_df %>%
 
 nrc_sentiment_control_by_author <- sentiment_random_df %>% 
   group_by(author_id) %>% 
-  summarize(username = username,
-            description = description1,
+  summarize(corpus= corpus,
             number_of_tweets = n(),
             anger = mean(anger),
             anticipation = mean(anticipation),
@@ -495,7 +498,7 @@ nrc_sentiment_control_by_author <- sentiment_random_df %>%
   distinct(author_id, .keep_all = TRUE) %>% 
   group_by(author_id) %>% 
   mutate(percentage_of_tweets = number_of_tweets/41828)
-mean(nrc_sentiment_d8_by_author$number_of_tweets)
+mean(nrc_sentiment_control_by_author$number_of_tweets)
 
 
 nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
@@ -538,6 +541,8 @@ random_bar_words_table_gt %>%
 * Join random sentiment dataframe with delta 8
 
 ```{r combined-control-and-d8}
+nrc_sentiment_d8_by_author
+
 combined_sentiment_df <- bind_rows(nrc_sentiment_control_by_author,nrc_sentiment_d8_by_author)
 saveRDS(combined_sentiment_df, file= "combined_author_sentiment_df.rds")
 ```
@@ -545,6 +550,21 @@ saveRDS(combined_sentiment_df, file= "combined_author_sentiment_df.rds")
 Compare % differences among each 
 ```{r}
 readRDS("combined_author_sentiment_df.rds")
+
+anger = lm(anger~corpus, data = combined_sentiment_df)
+anticipation = lm(anticipation~corpus, data = combined_sentiment_df)
+disgust = lm(disgust~corpus, data = combined_sentiment_df)
+fear = lm(fear~corpus, data = combined_sentiment_df)
+joy = lm(joy~corpus, data = combined_sentiment_df)
+sadness = lm(sadness~corpus, data = combined_sentiment_df)
+surprise = lm(surprise~corpus, data = combined_sentiment_df)
+trust = lm(trust~corpus, data = combined_sentiment_df)
+negative = lm(negative~corpus, data = combined_sentiment_df)
+positive = lm(positive~corpus, data = combined_sentiment_df)
+
+
+tab_model(anger,anticipation, disgust, fear, joy, sadness, surprise, trust, negative, positive, dv.labels = c("Anger", "Anticipation","Disgust","Fear", "Joy", "Sadness", "Surprise", "Trust", "Negative", "Positive"), show.aic = TRUE, show.dev = TRUE)
+
 
 ```
 
