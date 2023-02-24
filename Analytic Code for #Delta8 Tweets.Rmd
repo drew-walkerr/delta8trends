@@ -223,10 +223,28 @@ d8_tweets_by_date <- d8_tweets %>%
             replies_per_day = sum(public_metrics.x$reply_count, na.rm = TRUE),
             quotes_per_day = sum(public_metrics.x$quote_count, na.rm = TRUE)) %>% 
   mutate(month = month(day),
-         year = year(day))
+         year = year(day)) %>% 
+  mutate(`Tweet Source` = "All Accounts")
+# Major accounts posts
+major_accounts_by_date <- d8_tweets %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day)) %>% 
+  dplyr::group_by(day) %>% 
+  filter(author_id == "1294976643241476099" | author_id == "1386842121102143490") %>%  
+  dplyr::summarize(tweets_per_day = n(),
+           likes_per_day = sum(public_metrics.x$like_count, na.rm = TRUE),
+           retweets_per_day = sum(public_metrics.x$retweet_count, na.rm = TRUE),
+           replies_per_day = sum(public_metrics.x$reply_count, na.rm = TRUE),
+           quotes_per_day = sum(public_metrics.x$quote_count, na.rm = TRUE)) %>% 
+  mutate(month = month(day),
+         year = year(day)) %>% 
+  mutate(`Tweet Source` = "Top Two Accounts")
 
-tweets_per_day <- ggplot(d8_tweets_by_date, aes(day, tweets_per_day)) +
-  geom_line(aes(y = tweets_per_day), color = "darkred")+
+d8_tweets_by_date_with_major_accounts <- rbind(d8_tweets_by_date,major_accounts_by_date)
+
+tweets_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, tweets_per_day)) +
+  geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
   labs(y = "Tweets per Day", title = "#Delta8 Tweets")+
   scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
     theme_classic()+theme(axis.title.x=element_blank())
@@ -235,8 +253,8 @@ tweets_per_day_filename <- paste0(here("tweets_per_day"),st,".png")
 ggsave(tweets_per_day_filename)
 
 #likes per day graph
-likes_per_day <- ggplot(d8_tweets_by_date, aes(day, likes_per_day)) +
-  geom_line(aes(y = likes_per_day), color = "darkblue")+
+likes_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, likes_per_day)) +
+   geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
   labs(y = "Likes per Day", title = "#Delta8 Tweet Likes")+
   scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
     theme_classic()+
@@ -251,17 +269,8 @@ retweets <- d8_tweets_raw %>%
   filter(referenced_tweets != "NULL")
 
 
-retweet_d8_tweets_by_date <- retweets %>% 
-  mutate(day = as.Date(created_at.x),
-         month = month(day),
-         year = year(day)) %>% 
-  dplyr::group_by(day) %>% 
-  dplyr::summarize(tweets_per_day = n()) %>% 
-  mutate(month = month(day),
-         year = year(day))
-
-retweets_per_day <- ggplot(retweet_d8_tweets_by_date, aes(day, retweets_per_day)) +
-  geom_line(aes(y = tweets_per_day), color = "orange")+
+retweets_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, retweets_per_day)) +
+  geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
   labs(y = "RTs, quotes, or replies per Day", title = "#Delta8 Retweets, quotes, or replies per day")+
   scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
     theme_classic()+ 
@@ -272,8 +281,8 @@ ggsave(retweets_per_day_file_name)
 
 
 
-quotes_per_day <- ggplot(d8_tweets_by_date, aes(day, quotes_per_day)) +
-  geom_line(aes(y = quotes_per_day))+
+quotes_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, quotes_per_day)) +
+   geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
   labs(y = "Quotes per Day", title = "#Delta8 Quotes")+
   scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
     theme_classic() + theme(axis.title.x = element_blank())
@@ -281,8 +290,8 @@ quotes_per_day
 quotes_per_day_file_name <- paste0(here("quotes_per_day"),st,".png") 
 ggsave(quotes_per_day_file_name)
 
-replies_per_day <- ggplot(d8_tweets_by_date, aes(day, replies_per_day)) +
-  geom_line(aes(y = replies_per_day))+
+replies_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, replies_per_day)) +
+   geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
   labs(y = "Replies per Day", title = "#Delta8 Tweet Replies")+
   scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
     theme_classic()+
@@ -291,7 +300,7 @@ replies_per_day
 replies_per_day_file_name <- paste0(here("replies_per_day"),st,".png") 
 ggsave(replies_per_day_file_name)
 
-all_graphs <- tweets_per_day / likes_per_day / retweets_per_day + plot_layout(widths = c(3, 1))
+all_graphs <- tweets_per_day / likes_per_day / retweets_per_day / quotes_per_day + plot_layout(widths = c(4, 1))
 
 all_graphs
 
@@ -427,8 +436,9 @@ stop_words_tweet_dfs <- snowball %>%
 
 saveRDS(stop_words_tweet_dfs, file= "random_stopword_tweets.rds")
 ```
+
 ```{r load-control}
-readRDS("random_stopword_tweets.rds")
+random_stopword_tweets <- readRDS("random_stopword_tweets.rds")
 flattened_df <- unnest(random_stopword_tweets)
 
 word_counts = flattened_df %>% 
@@ -501,7 +511,6 @@ nrc_sentiment_control_by_author <- sentiment_random_df %>%
 mean(nrc_sentiment_control_by_author$number_of_tweets)
 
 
-nrc <- get_sentiments("nrc") # get specific sentiment lexicons in a tidy format
 random_nrc_words <- random_mergeable_word_count %>%
   left_join(nrc, by="word")
 
@@ -549,19 +558,35 @@ saveRDS(combined_sentiment_df, file= "combined_author_sentiment_df.rds")
 
 Compare % differences among each 
 ```{r}
-readRDS("combined_author_sentiment_df.rds")
+combined_sentiment_df <- readRDS("combined_author_sentiment_df.rds")
 
 anger = lm(anger~corpus, data = combined_sentiment_df)
+summary(anger)
 anticipation = lm(anticipation~corpus, data = combined_sentiment_df)
+summary(anticipation)
 disgust = lm(disgust~corpus, data = combined_sentiment_df)
-fear = lm(fear~corpus, data = combined_sentiment_df)
-joy = lm(joy~corpus, data = combined_sentiment_df)
-sadness = lm(sadness~corpus, data = combined_sentiment_df)
-surprise = lm(surprise~corpus, data = combined_sentiment_df)
-trust = lm(trust~corpus, data = combined_sentiment_df)
-negative = lm(negative~corpus, data = combined_sentiment_df)
-positive = lm(positive~corpus, data = combined_sentiment_df)
+summary(disgust)
 
+fear = lm(fear~corpus, data = combined_sentiment_df)
+summary(fear)
+
+joy = lm(joy~corpus, data = combined_sentiment_df)
+summary(joy)
+
+sadness = lm(sadness~corpus, data = combined_sentiment_df)
+summary(sadness)
+
+surprise = lm(surprise~corpus, data = combined_sentiment_df)
+summary(surprise)
+
+trust = lm(trust~corpus, data = combined_sentiment_df)
+summary(trust)
+
+negative = lm(negative~corpus, data = combined_sentiment_df)
+summary(negative)
+
+positive = lm(positive~corpus, data = combined_sentiment_df)
+summary(positive)
 
 tab_model(anger,anticipation, disgust, fear, joy, sadness, surprise, trust, negative, positive, dv.labels = c("Anger", "Anticipation","Disgust","Fear", "Joy", "Sadness", "Surprise", "Trust", "Negative", "Positive"), show.aic = TRUE, show.dev = TRUE)
 
