@@ -142,11 +142,10 @@ ggsave(word_count_bar_filename)
   * break into by word and merge by sentiment 
 
 
-```{r, nrc}
+```{r nrc, eval = FALSE}
 library(furrr)
 #using furrr for parallel processing, help to prevent crashing w/possibly
 possible_nrc_sentiment <- possibly(get_nrc_sentiment,otherwise = tibble("NA"))
-
 
 nrc_sentiment_d8 <- d8_tweets %>% 
   mutate(nrc_sentiment_df = future_map(text, possible_nrc_sentiment),
@@ -171,6 +170,8 @@ nrc_sentiment_d8_by_author <- nrc_sentiment_d8 %>%
   group_by(author_id) %>% 
   mutate(percentage_of_tweets = number_of_tweets/41828)
 mean(nrc_sentiment_d8_by_author$number_of_tweets)
+
+nrc <- get_sentiments("nrc")
 nrc_words <- mergeable_word_count %>%
   left_join(nrc, by="word")
 # Top words sentiment
@@ -243,21 +244,19 @@ major_accounts_by_date <- d8_tweets %>%
 
 d8_tweets_by_date_with_major_accounts <- rbind(d8_tweets_by_date,major_accounts_by_date)
 
-tweets_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, tweets_per_day)) +
-  geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
+tweets_per_day <- ggplot(d8_tweets_by_date, aes(day, tweets_per_day)) +
+  geom_line(aes(y = tweets_per_day))+
   labs(y = "Tweets per Day", title = "#Delta8 Tweets")+
-  scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
-    theme_classic()+theme(axis.title.x=element_blank())
+  scale_x_date(limits = c(as.Date("2020-01-01"), as.Date("2021-09-26")), breaks = as.Date(c("2020-01-01","2021-09-26","2020-11-12"), date_labels = "%b-%Y"))+    theme_classic()+theme(axis.title.x=element_blank())
 tweets_per_day
 tweets_per_day_filename <- paste0(here("tweets_per_day"),st,".png") 
 ggsave(tweets_per_day_filename)
 
 #likes per day graph
-likes_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, likes_per_day)) +
-   geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
+likes_per_day <- ggplot(d8_tweets_by_date, aes(day, likes_per_day)) +
+  geom_line(aes(y = likes_per_day))+
   labs(y = "Likes per Day", title = "#Delta8 Tweet Likes")+
-  scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
-    theme_classic()+
+  scale_x_date(limits = c(as.Date("2020-01-01"), as.Date("2021-09-26")), breaks = as.Date(c("2020-01-01","2021-09-26","2020-11-12"), date_labels = "%b-%Y"))+    theme_classic()+
   theme(axis.title.x=element_blank())
 likes_per_day
 likes_per_day_file_name <- paste0(here("likes_per_day"),st,".png") 
@@ -269,11 +268,18 @@ retweets <- d8_tweets_raw %>%
   filter(referenced_tweets != "NULL")
 
 
-retweets_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, retweets_per_day)) +
-  geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
-  labs(y = "RTs, quotes, or replies per Day", title = "#Delta8 Retweets, quotes, or replies per day")+
-  scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
-    theme_classic()+ 
+retweet_d8_tweets_by_date <- retweets %>% 
+  mutate(day = as.Date(created_at.x),
+         month = month(day),
+         year = year(day)) %>% 
+  dplyr::group_by(day) %>% 
+  dplyr::summarize(tweets_per_day = n()) %>% 
+  mutate(month = month(day),
+         year = year(day))
+retweets_per_day <- ggplot(retweet_d8_tweets_by_date, aes(day, retweets_per_day)) +
+  geom_line(aes(y = tweets_per_day))+
+  labs(y = "RTs per Day", title = "#Delta8 Retweets per day")+
+  scale_x_date(limits = c(as.Date("2020-01-01"), as.Date("2021-09-26")), breaks = as.Date(c("2020-01-01","2021-09-26","2020-11-12"), date_labels = "%b-%Y"))+    theme_classic()+ 
   theme(axis.title.x=element_blank())
 retweets_per_day
 retweets_per_day_file_name <- paste0(here("retweets_per_day"),st,".png") 
@@ -281,19 +287,20 @@ ggsave(retweets_per_day_file_name)
 
 
 
-quotes_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, quotes_per_day)) +
-   geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
+quotes_per_day <- ggplot(d8_tweets_by_date, aes(day, quotes_per_day)) +
+  geom_line(aes(y = quotes_per_day))+
   labs(y = "Quotes per Day", title = "#Delta8 Quotes")+
-  scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
-    theme_classic() + theme(axis.title.x = element_blank())
+  scale_x_date(limits = c(as.Date("2020-01-01"), as.Date("2021-09-26")), breaks = as.Date(c("2020-01-01","2021-09-26","2020-11-12"), date_labels = "%b-%Y"))+
+    theme_classic() + 
+  theme(axis.title.x = element_blank())
 quotes_per_day
 quotes_per_day_file_name <- paste0(here("quotes_per_day"),st,".png") 
 ggsave(quotes_per_day_file_name)
 
-replies_per_day <- ggplot(d8_tweets_by_date_with_major_accounts, aes(day, replies_per_day)) +
-   geom_line(aes(color=`Tweet Source`,linetype= `Tweet Source`))+
+replies_per_day <- ggplot(d8_tweets_by_date, aes(day, replies_per_day)) +
+  geom_line(aes(y = replies_per_day))+
   labs(y = "Replies per Day", title = "#Delta8 Tweet Replies")+
-  scale_x_date(date_breaks = "6 months", date_labels = "%b-%y")+
+    scale_x_date(limits = c(as.Date("2020-01-01"), as.Date("2021-09-26")), breaks = as.Date(c("2020-01-01","2021-09-26","2020-11-12"), date_labels = "%b-%Y"))+
     theme_classic()+
   theme(axis.title.x=element_blank())
 replies_per_day
@@ -305,7 +312,7 @@ all_graphs <- tweets_per_day / likes_per_day / retweets_per_day / quotes_per_day
 all_graphs
 
 all_graphs_filename <- paste0(here("trend_graph_collage"),st,".png") 
-ggsave(all_graphs_filename)
+ggsave(all_graphs_filename,width = 10, height = 10)
 library(table1)
 table1(~ tweets_per_day|factor(year), data=d8_tweets_by_date)
 
@@ -510,7 +517,7 @@ nrc_sentiment_control_by_author <- sentiment_random_df %>%
   mutate(percentage_of_tweets = number_of_tweets/41828)
 mean(nrc_sentiment_control_by_author$number_of_tweets)
 
-
+nrc <- get_sentiments("nrc")
 random_nrc_words <- random_mergeable_word_count %>%
   left_join(nrc, by="word")
 
